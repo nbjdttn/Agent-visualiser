@@ -15,6 +15,7 @@ import {
   parseSwap,
   parseVmStat,
   parseDisplayAssertions,
+  parseRemoteSession,
   parseIdleSeconds,
   parseNames,
   parsePs,
@@ -53,6 +54,11 @@ describe('reading the Mac', () => {
 
   it('counts videos and calls, not keep-awake tools, remote-desktop sessions or audio', () => {
     expect(parseDisplayAssertions(PMSET)).toEqual([{ pid: 1234, name: 'Google Chrome' }]);
+  });
+
+  it('sees a connected remote-desktop session', () => {
+    expect(parseRemoteSession(PMSET)).toBe(true);
+    expect(parseRemoteSession(PMSET.replace(/.*remoting_me2me_host.*\n/, ''))).toBe(false);
   });
 
   it('counts a video or call only while sound is playing', () => {
@@ -117,6 +123,8 @@ describe('reading the Mac', () => {
     expect(decidePresence({ ...base, idleSec: 600 })).toEqual({ here: false, reason: 'away' });
     expect(decidePresence({ ...base, idleSec: 590, media: true })).toEqual({ here: true, reason: 'media' });
     expect(decidePresence({ ...base, idleSec: 610, media: true })).toEqual({ here: false, reason: 'away' }); // 10 min at most
+    expect(decidePresence({ ...base, idleSec: 300, remote: true })).toEqual({ here: true, reason: 'remote' });
+    expect(decidePresence({ ...base, idleSec: 610, remote: true })).toEqual({ here: false, reason: 'away' });
     expect(decidePresence({ ...base, idleSec: 3 * 3600, media: true })).toEqual({ here: false, reason: 'away' });
     expect(decidePresence({ ...base, idleSec: undefined })).toEqual({ here: false, reason: 'unknown' });
     expect(decidePresence({ ...base, idleSec: 9999, mode: 'work' })).toEqual({ here: true, reason: 'work' });

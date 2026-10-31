@@ -32,7 +32,7 @@ export interface Held {
 
 export interface Presence {
   here: boolean;
-  /** input, media, work, full, away, unknown */
+  /** input, remote, media, work, full, away, unknown */
   reason: string;
 }
 
@@ -42,21 +42,30 @@ export function parseIdleSeconds(ioreg: string): number | undefined {
   return m ? Number(m[1]) / 1e9 : undefined;
 }
 
-/**
- * Keep-awake tools hold the screen on without anyone watching it, and so do
- * remote-desktop hosts for as long as a session stays connected (a remote
- * user's keys and clicks already count as input).
- */
-const KEEP_AWAKE = /caffeinate|amphetamine|keepingyouawake|lungo|theine|caffeine|jolt|nosleep|insomnia|remoting_me2me_host|screensharingd/i;
+/** Keep-awake tools hold the screen on without anyone watching it. */
+const KEEP_AWAKE = /caffeinate|amphetamine|keepingyouawake|lungo|theine|caffeine|jolt|nosleep|insomnia/i;
+
+/** Remote-desktop hosts (Chrome Remote Desktop, Screen Sharing) hold the screen on while a session is connected. */
+const REMOTE_HOST = /remoting_me2me_host|screensharingd/i;
+
+const DISPLAY_ASSERTION = /^\s*pid (\d+)\((.*?)\):.*\b(PreventUserIdleDisplaySleep|NoDisplaySleepAssertion)\b/;
 
 /** Apps keeping the screen awake for a person: a video, a call, a presentation. */
 export function parseDisplayAssertions(pmset: string): { pid: number; name: string }[] {
   const out: { pid: number; name: string }[] = [];
   for (const line of pmset.split('\n')) {
-    const m = /^\s*pid (\d+)\((.*?)\):.*\b(PreventUserIdleDisplaySleep|NoDisplaySleepAssertion)\b/.exec(line);
-    if (m && !KEEP_AWAKE.test(m[2])) out.push({ pid: Number(m[1]), name: m[2] });
+    const m = DISPLAY_ASSERTION.exec(line);
+    if (m && !KEEP_AWAKE.test(m[2]) && !REMOTE_HOST.test(m[2])) out.push({ pid: Number(m[1]), name: m[2] });
   }
   return out;
+}
+
+/** Whether someone is connected from another computer, which counts as being at the Mac. */
+export function parseRemoteSession(pmset: string): boolean {
+  return pmset.split('\n').some((line) => {
+    const m = DISPLAY_ASSERTION.exec(line);
+    return !!m && REMOTE_HOST.test(m[2]);
+  });
 }
 
 /**
@@ -211,14 +220,18 @@ export function agentJobs(procs: Proc[], names: Map<number, string>, marked: Set
   );
 }
 
-/** How long a video or call (screen kept awake, sound playing) counts as "here" without any input. */
+/**
+ * How long a remote session, or a video or call (screen kept awake, sound
+ * playing), counts as "here" without any input.
+ */
 export const MEDIA_MAX_SEC = 10 * 60;
 
-export function decidePresence(o: { idleSec?: number; media: boolean; mode: GentleMode; awayAfterSec: number }): Presence {
+export function decidePresence(o: { idleSec?: number; media: boolean; remote?: boolean; mode: GentleMode; awayAfterSec: number }): Presence {
   if (o.mode === 'work') return { here: true, reason: 'work' };
   if (o.mode === 'full') return { here: false, reason: 'full' };
   if (o.idleSec === undefined) return { here: false, reason: 'unknown' };
   if (o.idleSec < o.awayAfterSec) return { here: true, reason: 'input' };
+  if (o.remote && o.idleSec < MEDIA_MAX_SEC) return { here: true, reason: 'remote' };
   if (o.media && o.idleSec < MEDIA_MAX_SEC) return { here: true, reason: 'media' };
   return { here: false, reason: 'away' };
 }

@@ -55,6 +55,7 @@ import {
   parseVmStat,
   type CpuTimes,
   parseDisplayAssertions,
+  parseRemoteSession,
   parseIdleSeconds,
   parseAudioPlaying,
   isStopped,
@@ -213,10 +214,12 @@ async function readIdleSeconds(): Promise<number | undefined> {
 }
 
 /** Apps showing a video or call: they keep the screen awake and sound is playing. */
-async function readMedia(): Promise<string[]> {
+async function readMedia(): Promise<{ media: string[]; remote: boolean }> {
   const r = await exec.run('pmset', ['-g', 'assertions']);
-  if (!r.ok || !parseAudioPlaying(r.out)) return [];
-  return [...new Set(parseDisplayAssertions(r.out).map((a) => a.name))];
+  if (!r.ok) return { media: [], remote: false };
+  const remote = parseRemoteSession(r.out);
+  if (!parseAudioPlaying(r.out)) return { media: [], remote };
+  return { media: [...new Set(parseDisplayAssertions(r.out).map((a) => a.name))], remote };
 }
 
 /**
@@ -532,6 +535,7 @@ async function run() {
   let presence: Presence = { here: false, reason: 'away' };
   let idleSec: number | undefined;
   let media: string[] = [];
+  let remote = false;
   let agentsCores = 0;
   let busyCores: number | undefined;
   let gpu: number | undefined;
@@ -628,7 +632,7 @@ async function run() {
       idleSec = await readIdleSeconds();
       if (now - lastMedia >= MEDIA_MS) {
         lastMedia = now;
-        media = await readMedia();
+        ({ media, remote } = await readMedia());
       }
       if (now - lastSystem >= SYSTEM_MS) {
         lastSystem = now;
@@ -637,7 +641,7 @@ async function run() {
         times = t;
         ({ gpu, mem } = await readSystem());
       }
-      presence = decidePresence({ idleSec, media: media.length > 0, mode: cfg.mode, awayAfterSec: cfg.awayAfterSec });
+      presence = decidePresence({ idleSec, media: media.length > 0, remote, mode: cfg.mode, awayAfterSec: cfg.awayAfterSec });
 
       if (presence.here) {
         if (now - lastScan >= SCAN_MS) {
