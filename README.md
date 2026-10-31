@@ -101,37 +101,45 @@ counts, model, title and time of each conversation, not the messages themselves)
 the Home Screen app, and **Data → Delete all imported data** removes them. Automatic updates are end-to-end encrypted
 for your registered devices; turning them off on the phone deletes its key and what it received.
 
-### Gentle mode: agents slow down while you use the Mac
+### Gentle mode: agents leave you room while you use the Mac
 
 Agents running big jobs locally (simulations, builds) can make the Mac laggy just when you sit down to use it. Gentle
 mode is a small background helper that watches for you:
 
-- **You're at the Mac** (keyboard or mouse in the last 2 minutes, or a video or call keeping the screen awake): busy
-  jobs started by Claude Code or Codex drop to background priority. On Apple silicon that moves them onto the efficiency
-  cores and leaves the performance cores to you. They keep running, just slower.
+- **You're at the Mac** (keyboard or mouse in the last 2 minutes, or a call or video with sound on screen): busy jobs
+  started by Claude Code or Codex share the Mac so that **2 cores stay free for you**. They keep their priority and run
+  part of every 50 ms, just enough less that together they use at most all-but-two cores. If they're using less than
+  that anyway, nothing changes.
 - **You're away**: after 2 minutes without input they get the whole Mac back, until you touch the keyboard or mouse
-  again (they're slowed within about 2 seconds).
-- **From the phone**: the Overview tab gets a switch for your Mac. **Work mode** keeps agent jobs slowed even when you're
-  not touching the Mac (say, before a call); **Full speed** never slows them; **Auto** follows you. The Mac answers with
-  what it's doing ("Work mode · 2 agent jobs slowed").
+  again (within about 2 seconds).
+- **From the phone**: the Overview tab gets a card for your Mac with a short system panel (one block per CPU core, blue
+  for the agents, glowing green for the cores kept free for you; then GPU and memory) and a switch where the mode you're
+  in glows: **Work** keeps the cores free even when you're not touching the Mac, **Full speed** never holds the agents
+  back, **Auto** follows you.
 
-Install it on the Mac, in the same folder as automatic updates:
+Install it on the Mac, in the same folder as automatic updates (running it again updates it):
 
 ```sh
-npm run gentle -- install            # or: --pause to pause jobs instead, --away-after 5 for 5 minutes
+npm run gentle -- install            # --free-cores 3 to keep three free, --away-after 5 for 5 minutes
 ```
 
 | Command | What it does |
 | --- | --- |
 | `npm run gentle -- install` / `uninstall` | Start or stop the helper (macOS; it starts again after a restart) |
-| `npm run gentle -- status` | Mode, whether you count as here, and which jobs are held |
+| `npm run gentle -- status` | Mode, whether you count as here, CPU, GPU and memory, which jobs are held |
 | `npm run gentle -- work` / `auto` / `full` | Switch mode from the Mac (the phone switch does the same) |
 | `npm run gentle -- release` | Let every held job go right away |
+
+Other ways to hold jobs back, if you prefer: `--slow` (macOS background priority, the efficiency cores on Apple
+silicon) or `--pause` (stopped while you're here).
 
 **Which jobs:** any busy process (over a quarter of a core) running below Claude Code or Codex, or started by Claude Code
 even if it has since detached (its environment says `CLAUDECODE=1`). Your own apps and terminals are never touched. To
 treat one of your own jobs the same way, start it with `AV_GENTLE=1`, e.g. `AV_GENTLE=1 python3 sim.py`. To leave an
 agent's job alone (say, one a scheduler of its own already keeps in check), start it with `AV_GENTLE=0`.
+
+**Safety:** held jobs are always let go when the helper stops, and if it ever crashed mid-way, launchd restarts it within
+seconds and it continues anything left stopped.
 
 **Privacy and permissions:** it needs no special macOS permissions. It reads only how long the keyboard and mouse have
 been idle, never what you type or where you click. The phone switch goes through a public relay, [ntfy.sh](https://ntfy.sh), on a

@@ -37,6 +37,36 @@ export interface SetMessage {
   n: string;
 }
 
+/** Phone → Mac: please send your state now (the app was just opened). */
+export interface PingMessage {
+  t: 'ping';
+  at: number;
+  n: string;
+}
+
+/** How agent jobs are held back while you're at the Mac. */
+export type GentleHow = 'share' | 'slow' | 'pause';
+
+export interface CpuInfo {
+  cores: number;
+  /** Cores' worth the agents' jobs are using now. */
+  agents: number;
+  /** Cores kept free for you right now (0 at full speed). */
+  free: number;
+  /** Cores' worth everything on the Mac is using, agents included. */
+  busy?: number;
+}
+
+export interface MemInfo {
+  /** Bytes in use (apps, wired and compressed, as Activity Monitor counts it). */
+  used: number;
+  total: number;
+  /** macOS memory pressure. */
+  pressure?: 'normal' | 'warn' | 'critical';
+  /** Bytes swapped out to disk. */
+  swap?: number;
+}
+
 /** Mac → phone: what the Mac is doing now. */
 export interface StateMessage {
   t: 'state';
@@ -45,15 +75,20 @@ export interface StateMessage {
   here: boolean;
   /** Why: input, media (a video or call keeps the screen awake), work, full, away. */
   reason: string;
-  /** Agent jobs currently slowed or paused. */
+  /** Agent jobs currently held back. */
   held: number;
-  /** How they're held while you're here. */
-  how: 'slow' | 'pause';
+  how: GentleHow;
+  /** gentle while you're here (or in work mode), full when the agents have the whole Mac. */
+  live?: 'gentle' | 'full';
+  cpu?: CpuInfo;
+  /** GPU utilisation, percent. */
+  gpu?: number;
+  mem?: MemInfo;
   at: number;
   n: string;
 }
 
-export type ControlMessage = SetMessage | StateMessage;
+export type ControlMessage = SetMessage | PingMessage | StateMessage;
 
 const PREFIX = 'av1.';
 
@@ -114,6 +149,7 @@ export async function openControl(info: ControlInfo, text: string): Promise<Cont
     const msg = JSON.parse(new TextDecoder().decode(plain)) as ControlMessage;
     if (msg?.t === 'set' && GENTLE_MODES.includes(msg.mode) && Number.isFinite(msg.at)) return msg;
     if (msg?.t === 'state' && GENTLE_MODES.includes(msg.mode) && Number.isFinite(msg.at)) return msg;
+    if (msg?.t === 'ping' && Number.isFinite(msg.at)) return msg;
     return null;
   } catch {
     return null;

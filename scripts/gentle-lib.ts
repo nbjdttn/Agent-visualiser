@@ -6,7 +6,7 @@
  * IOHIDSystem's HIDIdleTime counter (no keystrokes or mouse positions are
  * read), videos and calls from power assertions, jobs from `ps`.
  */
-import type { GentleMode } from '../core/sync/control.js';
+import type { GentleHow, GentleMode } from '../core/sync/control.js';
 
 export interface Proc {
   pid: number;
@@ -21,8 +21,12 @@ export interface Held {
   pid: number;
   name: string;
   command: string;
-  /** slow: background priority (efficiency cores, low I/O). cap: stopped half the time. pause: stopped. */
-  how: 'slow' | 'cap' | 'pause';
+  /**
+   * share: runs part of every 50 ms so all agent jobs together leave some cores free.
+   * slow: background priority (efficiency cores, low I/O). pause: stopped.
+   * (cap: an older name for share, still understood when recovering.)
+   */
+  how: GentleHow | 'cap';
   since: number;
 }
 
@@ -49,6 +53,84 @@ export function parseDisplayAssertions(pmset: string): { pid: number; name: stri
     if (m && !KEEP_AWAKE.test(m[2])) out.push({ pid: Number(m[1]), name: m[2] });
   }
   return out;
+}
+
+/**
+ * Whether sound is playing: coreaudiod keeps the Mac awake while any audio
+ * device is in use. A real video or call has sound; a muted clip looping in a
+ * background tab doesn't, and shouldn't make the Mac think you're there.
+ */
+export function parseAudioPlaying(pmset: string): boolean {
+  return pmset.split('\n').some((l) => /pid \d+\(coreaudiod\):.*PreventUserIdleSystemSleep/.test(l));
+}
+
+/** GPU utilisation from `ioreg -r -d 1 -w 0 -c IOAccelerator` (the busiest GPU), percent. */
+export function parseGpuUtil(ioreg: string): number | undefined {
+  const all = [...ioreg.matchAll(/"Device Utilization %"\s*=\s*(\d+)/g)].map((m) => Number(m[1]));
+  return all.length ? Math.min(100, Math.max(...all)) : undefined;
+}
+
+/** Memory in use from `vm_stat`, counted like Activity Monitor: app memory + wired + compressed. */
+export function parseVmStat(vmstat: string): number | undefined {
+  const page = Number(/page size of (\d+) bytes/.exec(vmstat)?.[1] ?? 4096);
+  const get = (label: string) => {
+    const m = new RegExp(`^${label}:\\s+(\\d+)`, 'm').exec(vmstat);
+    return m ? Number(m[1]) : undefined;
+  };
+  const wired = get('Pages wired down');
+  const compressed = get('Pages occupied by compressor') ?? 0;
+  if (wired === undefined) return undefined;
+  const anonymous = get('Anonymous pages');
+  const app = anonymous !== undefined ? anonymous - (get('Pages purgeable') ?? 0) : (get('Pages active') ?? 0);
+  return Math.max(0, app + wired + compressed) * page;
+}
+
+/** `sysctl -n kern.memorystatus_vm_pressure_level`: 1 normal, 2 warning, 4 critical. */
+export function parsePressure(level: string): 'normal' | 'warn' | 'critical' | undefined {
+  const n = Number(level.trim());
+  return n === 1 ? 'normal' : n === 2 ? 'warn' : n === 4 ? 'critical' : undefined;
+}
+
+/** Swap in use from `sysctl -n vm.swapusage` ("total = 2048.00M  used = 1234.56M  free = ..."), in bytes. */
+export function parseSwap(s: string): number | undefined {
+  const m = /used\s*=\s*([\d.]+)([KMGT])/.exec(s);
+  if (!m) return undefined;
+  return Number(m[1]) * 1024 ** ({ K: 1, M: 2, G: 3, T: 4 } as const)[m[2] as 'K' | 'M' | 'G' | 'T'];
+}
+
+export interface CpuTimes {
+  idle: number;
+  total: number;
+}
+
+/** Cores' worth busy between two readings of per-core CPU times (from os.cpus()). */
+export function coresBusy(before: CpuTimes[], after: CpuTimes[]): number | undefined {
+  if (!before.length || before.length !== after.length) return undefined;
+  let busy = 0;
+  for (let i = 0; i < after.length; i++) {
+    const total = after[i].total - before[i].total;
+    const idle = after[i].idle - before[i].idle;
+    if (total > 0) busy += Math.max(0, Math.min(1, (total - idle) / total));
+  }
+  return busy;
+}
+
+/** CPU time from ps (`321:45.67` on macOS, `01:02:03` or `2-01:02:03` elsewhere), in seconds. */
+export function parseCpuTime(s: string): number {
+  const [days, rest] = s.includes('-') ? s.split('-') : ['0', s];
+  const parts = rest.split(':').map(Number);
+  let secs = 0;
+  for (const p of parts) secs = secs * 60 + (Number.isFinite(p) ? p : 0);
+  return Number(days) * 86_400 + secs;
+}
+
+/**
+ * The share of time agent jobs may run so that together they use at most
+ * `budget` cores, given that they'd use `demand` cores if left alone.
+ */
+export function shareFraction(demand: number, budget: number): number {
+  if (!(demand > 0) || demand <= budget) return 1;
+  return Math.max(0.1, Math.min(1, budget / demand));
 }
 
 /** Rows of `ps -axo pid=,ppid=,uid=,pcpu=,command=`. */
@@ -86,6 +168,9 @@ export const AGENT_ENV = /(^|\s)(CLAUDECODE=1|CLAUDE_CODE_ENTRYPOINT=\S+|CODEX_S
 /** A job started with `AV_GENTLE=0` is left alone, e.g. one a scheduler of its own already keeps in check. */
 export const OPT_OUT_ENV = /(^|\s)AV_GENTLE=0(\s|$)/;
 
+/** A stopped process (state T in ps), e.g. one a crashed helper left paused. */
+export const isStopped = (stat: string) => /^T/.test(stat.trim());
+
 /** Our own processes (this helper and the usage sync) are never held. */
 const OWN = /scripts\/(gentle|sync)\.ts/;
 
@@ -122,8 +207,8 @@ export function agentJobs(procs: Proc[], names: Map<number, string>, marked: Set
   );
 }
 
-/** How long a playing video or call counts as "here" without any input. */
-export const MEDIA_MAX_SEC = 30 * 60;
+/** How long a video or call (screen kept awake, sound playing) counts as "here" without any input. */
+export const MEDIA_MAX_SEC = 15 * 60;
 
 export function decidePresence(o: { idleSec?: number; media: boolean; mode: GentleMode; awayAfterSec: number }): Presence {
   if (o.mode === 'work') return { here: true, reason: 'work' };
@@ -142,16 +227,23 @@ export interface Exec {
 }
 
 /**
- * Holds jobs back and lets them go. "slow" uses macOS background priority
- * (`taskpolicy -b`), which on Apple silicon moves the job to the efficiency
- * cores and leaves the performance cores to you; if that's refused, the job is
- * capped instead (stopped for half of every 200 ms). "pause" stops the job
- * until you're away.
+ * Holds jobs back and lets them go.
+ *
+ * share (the default): the jobs keep normal priority but run only part of
+ * every 50 ms, a part set with setShare() so that together they leave a
+ * couple of cores free for you. Nothing changes while they use less than that.
+ *
+ * slow: macOS background priority (`taskpolicy -b`), which on Apple silicon
+ * moves the job onto the efficiency cores. If background priority can't be
+ * set (or undone) here, share is used instead.
+ *
+ * pause: stopped until you're away.
  */
 export class Holder {
   readonly held = new Map<number, Held>();
-  private timer: ReturnType<typeof setInterval> | undefined;
-  private phase = false;
+  private fraction = 1;
+  private timer: ReturnType<typeof setTimeout> | undefined;
+  private stopped = false;
 
   constructor(
     private readonly exec: Exec,
@@ -159,9 +251,15 @@ export class Holder {
     private readonly now: () => number = Date.now,
     /** Whether background priority can be set and undone here (see the helper's startup check). */
     private readonly background = true,
+    private readonly periodMs = 50,
   ) {}
 
-  async hold(p: Proc, name: string, want: 'slow' | 'pause'): Promise<boolean> {
+  /** The share of time shared jobs currently run (1 = not held back at all). */
+  get share(): number {
+    return this.fraction;
+  }
+
+  async hold(p: Proc, name: string, want: GentleHow): Promise<boolean> {
     if (this.held.has(p.pid)) return false;
     const base = { pid: p.pid, name, command: p.command, since: this.now() };
     if (want === 'pause') {
@@ -169,15 +267,24 @@ export class Holder {
       this.held.set(p.pid, { ...base, how: 'pause' });
       return true;
     }
-    const r = this.background ? await this.exec.run('taskpolicy', ['-b', '-p', String(p.pid)]) : { ok: false };
-    if (r.ok) {
-      this.held.set(p.pid, { ...base, how: 'slow' });
-    } else {
-      if (this.background) this.log(`Background priority was refused for ${name} (${p.pid}); capping it at half speed instead.`);
-      this.held.set(p.pid, { ...base, how: 'cap' });
-      this.startCycle();
+    if (want === 'slow' && this.background) {
+      const r = await this.exec.run('taskpolicy', ['-b', '-p', String(p.pid)]);
+      if (r.ok) {
+        this.held.set(p.pid, { ...base, how: 'slow' });
+        return true;
+      }
+      this.log(`Background priority was refused for ${name} (${p.pid}); sharing the cores with it instead.`);
     }
+    this.held.set(p.pid, { ...base, how: 'share' });
+    if (this.stopped) this.exec.signal(p.pid, 'SIGSTOP');
+    this.sync();
     return true;
+  }
+
+  /** Let shared jobs run this share of the time (clamped to 10–100%). */
+  setShare(fraction: number): void {
+    this.fraction = Math.max(0.1, Math.min(1, fraction));
+    this.sync();
   }
 
   async release(pid: number): Promise<void> {
@@ -192,37 +299,52 @@ export class Holder {
         this.exec.signal(pid, 'SIGCONT');
       }
     }
-    this.stopCycleIfIdle();
+    this.sync();
   }
 
   async releaseAll(): Promise<number> {
     const pids = [...this.held.keys()];
     for (const pid of pids) await this.release(pid);
+    this.fraction = 1;
+    this.sync();
     return pids.length;
   }
 
   /** Forget jobs that have finished. */
   prune(alive: Set<number>): void {
     for (const pid of [...this.held.keys()]) if (!alive.has(pid)) this.held.delete(pid);
-    this.stopCycleIfIdle();
+    this.sync();
   }
 
-  /** One step of the half-speed cap: alternately stop and continue capped jobs. */
-  cycle(): void {
-    this.phase = !this.phase;
-    for (const h of this.held.values()) if (h.how === 'cap') this.exec.signal(h.pid, this.phase ? 'SIGSTOP' : 'SIGCONT');
+  private shared(): Held[] {
+    return [...this.held.values()].filter((h) => h.how === 'share' || h.how === 'cap');
   }
 
-  private startCycle() {
-    if (!this.timer) this.timer = setInterval(() => this.cycle(), 100);
-  }
-
-  private stopCycleIfIdle() {
-    if (this.timer && ![...this.held.values()].some((h) => h.how === 'cap')) {
-      clearInterval(this.timer);
+  /** Start or stop the run/stop cycle to match the share and the jobs held. */
+  private sync() {
+    const needed = this.fraction < 0.98 && this.shared().length > 0;
+    if (needed && !this.timer) this.runPhase();
+    if (!needed && this.timer) {
+      clearTimeout(this.timer);
       this.timer = undefined;
-      this.phase = false;
     }
+    if (!needed && this.stopped) {
+      for (const h of this.shared()) this.exec.signal(h.pid, 'SIGCONT');
+      this.stopped = false;
+    }
+  }
+
+  private runPhase() {
+    if (this.stopped) {
+      for (const h of this.shared()) this.exec.signal(h.pid, 'SIGCONT');
+      this.stopped = false;
+    }
+    const on = Math.max(1, Math.round(this.periodMs * this.fraction));
+    this.timer = setTimeout(() => {
+      for (const h of this.shared()) this.exec.signal(h.pid, 'SIGSTOP');
+      this.stopped = true;
+      this.timer = setTimeout(() => this.runPhase(), Math.max(1, this.periodMs - on));
+    }, on);
   }
 }
 

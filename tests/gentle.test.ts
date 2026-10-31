@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { latestState, newControlInfo, nonce, openControl, parseRelayLines, sealControl, type StateMessage } from '../core/sync/control';
 import {
   AGENT_ENV,
@@ -7,11 +7,19 @@ import {
   decidePresence,
   Holder,
   jobNames,
+  coresBusy,
+  parseAudioPlaying,
+  parseCpuTime,
+  parseGpuUtil,
+  parsePressure,
+  parseSwap,
+  parseVmStat,
   parseDisplayAssertions,
   parseIdleSeconds,
   parseNames,
   parsePs,
   recover,
+  shareFraction,
   type Exec,
   type Held,
 } from '../scripts/gentle-lib';
@@ -44,6 +52,62 @@ describe('reading the Mac', () => {
 
   it('counts videos and calls, not keep-awake tools or audio', () => {
     expect(parseDisplayAssertions(PMSET)).toEqual([{ pid: 1234, name: 'Google Chrome' }]);
+  });
+
+  it('counts a video or call only while sound is playing', () => {
+    expect(parseAudioPlaying(PMSET)).toBe(true);
+    expect(parseAudioPlaying(PMSET.replace(/.*coreaudiod.*\n/, ''))).toBe(false);
+  });
+
+  it('reads GPU use, memory, memory pressure and swap', () => {
+    expect(parseGpuUtil('"PerformanceStatistics" = {"Tiler Utilization %"=10,"Device Utilization %"=37,"Renderer Utilization %"=35}')).toBe(37);
+    expect(parseGpuUtil('"Device Utilization %"=5\n"Device Utilization %"=62')).toBe(62);
+    expect(parseGpuUtil('no gpu here')).toBeUndefined();
+    const vm = [
+      'Mach Virtual Memory Statistics: (page size of 16384 bytes)',
+      'Pages free:                               12345.',
+      'Pages active:                            400000.',
+      'Pages wired down:                        150000.',
+      'Pages purgeable:                          20000.',
+      'Anonymous pages:                         500000.',
+      'Pages occupied by compressor:             80000.',
+    ].join('\n');
+    expect(parseVmStat(vm)).toBe((500000 - 20000 + 150000 + 80000) * 16384);
+    expect(parseVmStat('Mach Virtual Memory Statistics: (page size of 4096 bytes)\nPages active: 100.\nPages wired down: 50.\n')).toBe(150 * 4096);
+    expect(parseVmStat('nothing')).toBeUndefined();
+    expect(parsePressure('1\n')).toBe('normal');
+    expect(parsePressure('2')).toBe('warn');
+    expect(parsePressure('4')).toBe('critical');
+    expect(parseSwap('total = 2048.00M  used = 1234.56M  free = 813.44M  (encrypted)')).toBeCloseTo(1234.56 * 1024 ** 2);
+    expect(parseSwap('total = 0.00M  used = 0.00M  free = 0.00M')).toBe(0);
+  });
+
+  it('works out how many cores the whole Mac is using', () => {
+    const before = [
+      { idle: 100, total: 200 },
+      { idle: 50, total: 100 },
+    ];
+    const after = [
+      { idle: 150, total: 300 },
+      { idle: 50, total: 200 },
+    ];
+    expect(coresBusy(before, after)).toBeCloseTo(1.5);
+    expect(coresBusy([], after)).toBeUndefined();
+  });
+
+  it('reads CPU time in the formats ps uses', () => {
+    expect(parseCpuTime('0:01.50')).toBeCloseTo(1.5);
+    expect(parseCpuTime('321:45.00')).toBeCloseTo(321 * 60 + 45);
+    expect(parseCpuTime('01:02:03')).toBe(3723);
+    expect(parseCpuTime('2-01:02:03')).toBe(2 * 86_400 + 3723);
+  });
+
+  it('works out how much of the time agent jobs may run to leave cores free', () => {
+    expect(shareFraction(5, 8)).toBe(1); // using less than allowed: nothing to do
+    expect(shareFraction(10, 8)).toBeCloseTo(0.8); // 10 cores wanted, 8 allowed
+    expect(shareFraction(16, 8)).toBeCloseTo(0.5);
+    expect(shareFraction(100, 1)).toBe(0.1); // never stopped for more than 90% of the time
+    expect(shareFraction(0, 8)).toBe(1);
   });
 
   it('decides whether someone is at the Mac', () => {
@@ -152,24 +216,49 @@ describe('holding jobs back', () => {
     expect(calls).toEqual(['taskpolicy -b -p 10', 'taskpolicy -B -p 10']);
   });
 
-  it('caps the job at half speed when background priority is refused', async () => {
-    const { exec, calls } = fakeExec({ taskpolicy: false });
-    holder = new Holder(exec);
-    await holder.hold(job(11), 'julia', 'slow');
-    expect(holder.held.get(11)?.how).toBe('cap');
-    holder.cycle();
-    holder.cycle();
-    await holder.release(11);
-    expect(calls).toEqual(['taskpolicy -b -p 11', 'kill -STOP 11', 'kill -CONT 11', 'kill -CONT 11']);
+  it('shares: runs jobs part of every 50 ms, only when they need holding back', async () => {
+    vi.useFakeTimers();
+    try {
+      const { exec, calls } = fakeExec();
+      holder = new Holder(exec);
+      await holder.hold(job(30), 'python3', 'share');
+      await holder.hold(job(31), 'julia', 'share');
+      expect(holder.held.get(30)?.how).toBe('share');
+      vi.advanceTimersByTime(500);
+      expect(calls).toEqual([]); // share is 100% until told otherwise
+      holder.setShare(0.8);
+      vi.advanceTimersByTime(40); // 40 ms running...
+      expect(calls).toEqual(['kill -STOP 30', 'kill -STOP 31']);
+      vi.advanceTimersByTime(10); // ...10 ms stopped
+      expect(calls.slice(2)).toEqual(['kill -CONT 30', 'kill -CONT 31']);
+      vi.advanceTimersByTime(1000);
+      expect(calls.filter((c) => c.includes('STOP')).length).toBe(2 * 21);
+      holder.setShare(1); // they no longer need holding back: everything runs
+      const n = calls.length;
+      vi.advanceTimersByTime(1000);
+      expect(calls.length - n).toBeLessThanOrEqual(2);
+      expect(calls.at(-1)).toMatch(/CONT/);
+      await holder.release(30);
+      expect(calls.at(-1)).toBe('kill -CONT 30');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  it('goes straight to the cap when background priority is known not to work', async () => {
-    const { exec, calls } = fakeExec();
-    holder = new Holder(exec, () => undefined, Date.now, false);
+  it('shares instead when background priority is refused or known not to work', async () => {
+    const refused = fakeExec({ taskpolicy: false });
+    holder = new Holder(refused.exec);
+    await holder.hold(job(11), 'julia', 'slow');
+    expect(holder.held.get(11)?.how).toBe('share');
+    expect(refused.calls).toEqual(['taskpolicy -b -p 11']);
+    await holder.releaseAll();
+
+    const unknown = fakeExec();
+    holder = new Holder(unknown.exec, () => undefined, Date.now, false);
     await holder.hold(job(14), 'julia', 'slow');
-    expect(holder.held.get(14)?.how).toBe('cap');
+    expect(holder.held.get(14)?.how).toBe('share');
     await holder.release(14);
-    expect(calls).toEqual(['kill -CONT 14']);
+    expect(unknown.calls).toEqual(['kill -CONT 14']);
   });
 
   it('pauses and resumes', async () => {
@@ -220,6 +309,8 @@ describe('the phone link', () => {
     const info = newControlInfo();
     expect(info.relay).toBe('https://ntfy.sh');
     expect(info.topic).toMatch(/^av-[\w-]{20}$/);
+    const ping = { t: 'ping' as const, at: 1_700_000_000_000, n: nonce() };
+    expect(await openControl(info, await sealControl(info, ping))).toEqual(ping);
     const msg = { t: 'set' as const, mode: 'work' as const, at: 1_700_000_000_000, by: 'abc', n: nonce() };
     const sealed = await sealControl(info, msg);
     expect(sealed.startsWith('av1.')).toBe(true);

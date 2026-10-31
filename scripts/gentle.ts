@@ -5,12 +5,13 @@
  * While you're using the Mac (keyboard or mouse in the last couple of
  * minutes, or a video or call keeping the screen awake), the agents' heavy
  * jobs (simulations, builds, anything busy started by Claude Code or Codex)
- * drop to background priority, which on Apple silicon moves them onto the
- * efficiency cores. When you've been away for a while they get the whole
+ * share the Mac so that a couple of cores stay free for you; they keep going
+ * at nearly full speed. When you've been away for a while they get the whole
  * Mac back. From the phone app you can force Work mode (always gentle) or
- * Full speed (never gentle); Auto follows you.
+ * Full speed (never gentle); Auto follows you. The phone also sees how many
+ * cores the agents are using and how many are kept free for you.
  *
- *   npm run gentle -- install [--pause] [--away-after MIN] [--relay URL|off]
+ *   npm run gentle -- install [--free-cores N] [--slow | --pause] [--away-after MIN] [--relay URL|off]
  *   npm run gentle -- status
  *   npm run gentle -- work | auto | full
  *   npm run gentle -- release          let every held job go right now
@@ -33,7 +34,10 @@ import {
   sealControl,
   topicUrl,
   type ControlInfo,
+  type CpuInfo,
+  type GentleHow,
   type GentleMode,
+  type MemInfo,
   type StateMessage,
 } from '../core/sync/control.js';
 import {
@@ -43,11 +47,21 @@ import {
   decidePresence,
   Holder,
   jobNames,
+  coresBusy,
+  parseCpuTime,
+  parseGpuUtil,
+  parsePressure,
+  parseSwap,
+  parseVmStat,
+  type CpuTimes,
   parseDisplayAssertions,
   parseIdleSeconds,
+  parseAudioPlaying,
+  isStopped,
   parseNames,
   parsePs,
   recover,
+  shareFraction,
   type Exec,
   type Held,
   type Presence,
@@ -66,17 +80,24 @@ const LOG = path.join(os.homedir(), 'Library', 'Logs', 'agent-visualiser-gentle.
 
 const TICK_MS = 2_000;
 const SCAN_MS = 3_000;
+const AWAY_SCAN_MS = 15_000;
 const MEDIA_MS = 10_000;
-const HEARTBEAT_MS = 30 * 60_000;
+const SYSTEM_MS = 10_000;
+/** ntfy.sh allows a few hundred messages a day: a status at most every 15 s, a heartbeat hourly. */
+const PUBLISH_GAP_MS = 15_000;
+const HEARTBEAT_MS = 60 * 60_000;
 const MIN_CPU = 25;
+const CORES = Math.max(1, os.cpus().length);
 
 export interface GentleConfig {
-  v: 1;
+  v: 2;
   /** Installed as a background job (the phone only shows the switch then). */
   enabled: boolean;
   mode: GentleMode;
-  /** What happens to agent jobs while you're here. */
-  how: 'slow' | 'pause';
+  /** What happens to agent jobs while you're here: share the cores, slow (efficiency cores) or pause. */
+  how: GentleHow;
+  /** Cores kept free for you while sharing. */
+  freeCores: number;
   awayAfterSec: number;
   /** Phone control; null when turned off. */
   control: ControlInfo | null;
@@ -90,11 +111,14 @@ interface RuntimeState {
   pid: number;
   updatedAt: number;
   mode: GentleMode;
-  how: 'slow' | 'pause';
+  how: GentleHow;
   here: boolean;
   reason: string;
   idleSec?: number;
   held: Held[];
+  cpu?: CpuInfo;
+  gpu?: number;
+  mem?: MemInfo;
 }
 
 const log = (...args: unknown[]) => console.log(`[${new Date().toISOString().replace('T', ' ').slice(0, 19)}]`, ...args);
@@ -107,11 +131,14 @@ export function loadConfig(): GentleConfig {
   } catch {
     // first run
   }
+  // Version 1 always used background priority; sharing the cores is the default now.
+  const how: GentleHow = c.how === 'pause' ? 'pause' : c.how === 'slow' && c.v === 2 ? 'slow' : 'share';
   return {
-    v: 1,
+    v: 2,
     enabled: c.enabled ?? false,
     mode: c.mode === 'work' || c.mode === 'full' ? c.mode : 'auto',
-    how: c.how === 'pause' ? 'pause' : 'slow',
+    how,
+    freeCores: Number.isFinite(c.freeCores) && c.freeCores! >= 1 ? Math.min(c.freeCores!, CORES - 1) : Math.min(2, CORES - 1),
     awayAfterSec: Number.isFinite(c.awayAfterSec) && c.awayAfterSec! >= 15 ? c.awayAfterSec! : 120,
     control: c.control === null ? null : isControlInfo(c.control) ? c.control : newControlInfo(),
     lastSetAt: c.lastSetAt ?? 0,
@@ -185,9 +212,86 @@ async function readIdleSeconds(): Promise<number | undefined> {
   return undefined;
 }
 
+/** Apps showing a video or call: they keep the screen awake and sound is playing. */
 async function readMedia(): Promise<string[]> {
   const r = await exec.run('pmset', ['-g', 'assertions']);
-  return r.ok ? [...new Set(parseDisplayAssertions(r.out).map((a) => a.name))] : [];
+  if (!r.ok || !parseAudioPlaying(r.out)) return [];
+  return [...new Set(parseDisplayAssertions(r.out).map((a) => a.name))];
+}
+
+/**
+ * Safety net at start: continue any agent job left stopped (by a helper that
+ * crashed between two halves of its run/stop cycle, or a paused one).
+ */
+async function wakeStoppedJobs(): Promise<number> {
+  const [ps, stat, ucomm] = await Promise.all([
+    exec.run('ps', ['-axww', '-o', 'pid=,ppid=,uid=,pcpu=,command=']),
+    exec.run('ps', ['-ax', '-o', 'pid=,stat=']),
+    exec.run('ps', ['-ax', '-o', 'pid=,ucomm=']),
+  ]);
+  const stopped = new Set<number>();
+  for (const line of stat.out.split('\n')) {
+    const m = /^\s*(\d+)\s+(\S+)/.exec(line);
+    if (m && isStopped(m[2])) stopped.add(Number(m[1]));
+  }
+  if (!stopped.size) return 0;
+  const procs = parsePs(ps.out);
+  const uid = process.getuid?.() ?? -1;
+  const below = agentJobs(procs, parseNames(ucomm.out), new Set(), { uid, self: process.pid, minCpu: 0 });
+  let n = 0;
+  for (const p of below) if (stopped.has(p.pid) && exec.signal(p.pid, 'SIGCONT')) n++;
+  return n;
+}
+
+/** pid → its CPU time at the last look, to measure how many cores jobs really use. */
+const cpuSeen = new Map<number, { t: number; at: number }>();
+
+const lastRates = new Map<number, number>();
+
+/** Cores' worth the given processes used since the last look (new ones count at their ps average). */
+async function coresUsed(jobs: Proc[]): Promise<number> {
+  if (!jobs.length) {
+    cpuSeen.clear();
+    return 0;
+  }
+  const r = await exec.run('ps', ['-o', 'pid=,time=', '-p', jobs.map((j) => j.pid).join(',')]);
+  const now = Date.now();
+  const rate = new Map<number, number>();
+  for (const line of r.out.split('\n')) {
+    const m = /^\s*(\d+)\s+(\S+)/.exec(line);
+    if (!m) continue;
+    const pid = Number(m[1]);
+    const t = parseCpuTime(m[2]);
+    const prev = cpuSeen.get(pid);
+    cpuSeen.set(pid, { t, at: now });
+    if (prev && now > prev.at && t >= prev.t) rate.set(pid, (t - prev.t) / ((now - prev.at) / 1000));
+  }
+  const ids = new Set(jobs.map((j) => j.pid));
+  for (const pid of cpuSeen.keys()) if (!ids.has(pid)) cpuSeen.delete(pid);
+  lastRates.clear();
+  for (const [pid, r] of rate) lastRates.set(pid, r);
+  return jobs.reduce((a, j) => a + (rate.get(j.pid) ?? j.cpu / 100), 0);
+}
+
+/** Per-core CPU times now (idle and total, in ms) for measuring how busy the whole Mac is. */
+function cpuTimes(): CpuTimes[] {
+  return os.cpus().map((c) => ({ idle: c.times.idle, total: c.times.user + c.times.nice + c.times.sys + c.times.idle + c.times.irq }));
+}
+
+/** GPU use, memory in use (with pressure and swap): a quick look like Activity Monitor's. */
+async function readSystem(): Promise<{ gpu?: number; mem?: MemInfo }> {
+  const [gpu, vm, pressure, swap] = await Promise.all([
+    exec.run('ioreg', ['-r', '-d', '1', '-w', '0', '-c', 'IOAccelerator']),
+    exec.run('vm_stat', []),
+    exec.run('sysctl', ['-n', 'kern.memorystatus_vm_pressure_level']),
+    exec.run('sysctl', ['-n', 'vm.swapusage']),
+  ]);
+  const used = vm.ok ? parseVmStat(vm.out) : undefined;
+  const mem: MemInfo | undefined =
+    used === undefined
+      ? undefined
+      : JSON.parse(JSON.stringify({ used, total: os.totalmem(), pressure: pressure.ok ? parsePressure(pressure.out) : undefined, swap: swap.ok ? parseSwap(swap.out) : undefined }));
+  return { gpu: gpu.ok ? parseGpuUtil(gpu.out) : undefined, mem };
 }
 
 /**
@@ -243,6 +347,8 @@ async function scan(): Promise<{ procs: Proc[]; names: Map<number, string>; jobs
 class Relay {
   private publishTimer: ReturnType<typeof setTimeout> | undefined;
   private lastPublish = 0;
+  private publishDue = 0;
+  private lastPing = 0;
   private abort: AbortController | undefined;
 
   constructor(
@@ -315,18 +421,33 @@ class Relay {
       saveConfig(cfg);
     }
     const msg = await openControl(info, e.message);
-    if (msg?.t !== 'set') return;
+    if (!msg || msg.t === 'state') return;
     const skew = Math.abs(Date.now() - msg.at);
-    if (msg.at <= cfg.lastSetAt || skew > 15 * 60_000) return;
+    if (skew > 15 * 60_000) return;
+    if (msg.t === 'ping') {
+      // The app was opened: send a fresh status unless one went out moments ago.
+      if (msg.at > this.lastPing && Date.now() - this.lastPublish > 20_000) this.publishSoon(1_500, true);
+      this.lastPing = Math.max(this.lastPing, msg.at);
+      return;
+    }
+    if (msg.at <= cfg.lastSetAt) return;
     cfg.lastSetAt = msg.at;
     saveConfig(cfg);
     this.onMode(msg.mode, msg.by);
   }
 
-  /** Tell the phone what's happening (soon, and at most every few seconds). */
-  publishSoon(delay = 2_000) {
-    if (this.publishTimer) return;
-    const wait = Math.max(delay, 5_000 - (Date.now() - this.lastPublish));
+  /**
+   * Tell the phone what's happening: soon, and at most every 15 seconds; an
+   * answer to the phone (a command or "the app is open") goes out within seconds.
+   */
+  publishSoon(delay = 2_000, answer = false) {
+    const gap = answer ? 3_000 : PUBLISH_GAP_MS;
+    const wait = Math.max(delay, gap - (Date.now() - this.lastPublish));
+    if (this.publishTimer) {
+      if (!answer || this.publishDue <= Date.now() + wait) return;
+      clearTimeout(this.publishTimer);
+    }
+    this.publishDue = Date.now() + wait;
     this.publishTimer = setTimeout(() => {
       this.publishTimer = undefined;
       void this.publish();
@@ -356,13 +477,18 @@ class Relay {
 // The background loop
 // ---------------------------------------------------------------------------
 
-function describe(p: Presence, held: Map<number, Held>, how: 'slow' | 'pause'): string {
-  const jobs = held.size ? `${how === 'pause' ? 'pausing' : 'slowing'} ${jobNames(held.values())}` : 'no busy agent jobs';
+function describe(p: Presence, held: Map<number, Held>, how: GentleHow, freeCores: number): string {
+  const jobs =
+    how === 'share'
+      ? `keeping ${freeCores} of ${CORES} cores free for you`
+      : held.size
+        ? `${how === 'pause' ? 'pausing' : 'slowing'} ${jobNames(held.values())}`
+        : 'no busy agent jobs';
   switch (p.reason) {
     case 'work':
       return `Work mode: ${jobs}.`;
     case 'full':
-      return 'Full speed: agent jobs are not slowed.';
+      return 'Full speed: agent jobs have the whole Mac.';
     case 'input':
       return `You're at the Mac: ${jobs}.`;
     case 'media':
@@ -381,8 +507,12 @@ async function run() {
   }
   const previous = loadRuntime();
   if (previous && previous.pid !== process.pid && exec.alive(previous.pid) && Date.now() - previous.updatedAt < 150_000) {
-    log(`Gentle mode is already running (process ${previous.pid}); this copy is not needed.`);
-    return;
+    // Only if that process really is gentle mode (after a restart the number may belong to something else).
+    const r = await exec.run('ps', ['-o', 'command=', '-p', String(previous.pid)]);
+    if (/scripts\/gentle\.ts/.test(r.out)) {
+      log(`Gentle mode is already running (process ${previous.pid}); this copy is not needed.`);
+      return;
+    }
   }
   let cfg = loadConfig();
   saveConfig(cfg); // keeps the generated phone link
@@ -393,35 +523,85 @@ async function run() {
     const n = await recover(previous.held, exec, (pid) => cmd.get(pid));
     if (n) log(`Let go of ${n} job(s) held by the previous run.`);
   }
+  const woken = await wakeStoppedJobs();
+  if (woken) log(`Continued ${woken} agent job(s) that had been left stopped.`);
 
   const background = await backgroundPriorityWorks();
-  if (!background && cfg.how === 'slow') log('Background priority isn’t available here; busy agent jobs will be capped at half speed instead.');
+  if (!background && cfg.how === 'slow') log('Background priority isn’t available here; agent jobs will share the cores instead.');
   const holder = new Holder(exec, log, Date.now, background);
   let presence: Presence = { here: false, reason: 'away' };
   let idleSec: number | undefined;
   let media: string[] = [];
+  let agentsCores = 0;
+  let busyCores: number | undefined;
+  let gpu: number | undefined;
+  let mem: MemInfo | undefined;
+  let times = cpuTimes();
+  let lastSystem = 0;
+  let demand: number | undefined;
   let lastMedia = 0;
   let lastScan = 0;
   let lastSummary = '';
   let lastHeartbeat = 0;
   let lastWrite = 0;
 
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+  const cpu = (): CpuInfo => ({
+    cores: CORES,
+    agents: round1(agentsCores),
+    free: !presence.here ? 0 : cfg.how === 'pause' && holder.held.size ? CORES : cfg.freeCores,
+    ...(busyCores !== undefined ? { busy: round1(Math.max(busyCores, agentsCores)) } : {}),
+  });
   const writeState = () => {
     lastWrite = Date.now();
-    saveRuntime({ pid: process.pid, updatedAt: lastWrite, mode: cfg.mode, how: cfg.how, here: presence.here, reason: presence.reason, idleSec, held: [...holder.held.values()] });
+    saveRuntime({
+      pid: process.pid,
+      updatedAt: lastWrite,
+      mode: cfg.mode,
+      how: cfg.how,
+      here: presence.here,
+      reason: presence.reason,
+      idleSec,
+      held: [...holder.held.values()],
+      cpu: cpu(),
+      gpu,
+      mem,
+    });
   };
 
   const relay = new Relay(
     () => cfg,
     (mode, by) => {
-      if (mode === cfg.mode) return relay.publishSoon(0);
+      if (mode === cfg.mode) return relay.publishSoon(1_500, true);
       cfg.mode = mode;
       saveConfig(cfg);
+      relay.publishSoon(2_500, true); // after the next look round, so the answer shows the new mode at work
       log(`From the phone${by ? ` (${by.slice(0, 6)})` : ''}: ${mode === 'work' ? 'Work mode' : mode === 'full' ? 'Full speed' : 'Auto'}.`);
     },
-    () => ({ mode: cfg.mode, here: presence.here, reason: presence.reason, held: holder.held.size, how: cfg.how }),
+    () => ({
+      mode: cfg.mode,
+      here: presence.here,
+      reason: presence.reason,
+      held: holder.held.size,
+      how: cfg.how,
+      live: presence.here ? 'gentle' : 'full',
+      cpu: cpu(),
+      ...(gpu !== undefined ? { gpu } : {}),
+      ...(mem ? { mem } : {}),
+    }),
   );
   if (cfg.control) void relay.listen();
+
+  // Whatever happens, never leave a job stopped: continue them all on the way out.
+  process.on('exit', () => {
+    for (const h of holder.held.values()) if (h.how !== 'slow') exec.signal(h.pid, 'SIGCONT');
+  });
+  for (const ev of ['uncaughtException', 'unhandledRejection'] as const) {
+    process.on(ev, (err) => {
+      log(`Unexpected error: ${err instanceof Error ? err.stack || err.message : String(err)}`);
+      void holder.releaseAll().finally(() => process.exit(1));
+    });
+  }
 
   let stopping = false;
   const stop = async (signal: string) => {
@@ -436,8 +616,9 @@ async function run() {
   for (const s of ['SIGTERM', 'SIGINT', 'SIGHUP'] as const) process.on(s, () => void stop(s));
 
   log(
-    `Gentle mode is on: agent jobs are ${cfg.how === 'pause' ? 'paused' : 'slowed'} while you're at the Mac, and get it back after ${Math.round(cfg.awayAfterSec / 6) / 10} min away.` +
-      (cfg.control ? ` Phone link: ${cfg.control.relay}.` : ' Phone link: off.'),
+    `Gentle mode is on: while you're at the Mac, agent jobs ${
+      cfg.how === 'share' ? `leave ${cfg.freeCores} of ${CORES} cores free for you` : cfg.how === 'pause' ? 'are paused' : 'run on background priority'
+    }; they get the whole Mac back after ${Math.round(cfg.awayAfterSec / 6) / 10} min away.` + (cfg.control ? ` Phone link: ${cfg.control.relay}.` : ' Phone link: off.'),
   );
 
   for (;;) {
@@ -449,6 +630,13 @@ async function run() {
         lastMedia = now;
         media = await readMedia();
       }
+      if (now - lastSystem >= SYSTEM_MS) {
+        lastSystem = now;
+        const t = cpuTimes();
+        busyCores = coresBusy(times, t);
+        times = t;
+        ({ gpu, mem } = await readSystem());
+      }
       presence = decidePresence({ idleSec, media: media.length > 0, mode: cfg.mode, awayAfterSec: cfg.awayAfterSec });
 
       if (presence.here) {
@@ -456,21 +644,40 @@ async function run() {
           lastScan = now;
           const { procs, names, jobs } = await scan();
           holder.prune(new Set(procs.map((p) => p.pid)));
+          let added = false;
           for (const j of jobs) {
             const name = names.get(j.pid) ?? path.basename(j.command.split(' ')[0] ?? '?');
-            await holder.hold(j, name, cfg.how);
+            if (await holder.hold(j, name, cfg.how)) added = true;
+          }
+          if (added) writeState(); // recorded before any of them is ever stopped, for recovery
+          // Everything held plus anything busy, even if sharing has made a job look quiet.
+          const jobPids = new Set(jobs.map((j) => j.pid));
+          const tracked = procs.filter((p) => jobPids.has(p.pid) || holder.held.has(p.pid));
+          agentsCores = await coresUsed(tracked);
+          if (cfg.how !== 'pause') {
+            // What the shared jobs would use if left alone: what they used, given they ran only part of the time.
+            const shared = tracked.filter((p) => ['share', 'cap'].includes(holder.held.get(p.pid)?.how ?? ''));
+            const used = shared.reduce((a, p) => a + (lastRates.get(p.pid) ?? p.cpu / 100), 0);
+            const wanted = Math.min(CORES, used / holder.share);
+            demand = demand === undefined ? wanted : 0.5 * demand + 0.5 * wanted;
+            holder.setShare(shareFraction(demand, Math.max(1, CORES - cfg.freeCores)));
           }
         }
-      } else if (holder.held.size) {
-        await holder.releaseAll();
+      } else {
+        if (holder.held.size) await holder.releaseAll();
+        demand = undefined;
+        if (now - lastScan >= AWAY_SCAN_MS) {
+          lastScan = now;
+          agentsCores = await coresUsed((await scan()).jobs);
+        }
       }
 
-      const summary = describe(presence, holder.held, cfg.how) + (presence.reason === 'media' && media.length ? ` (${media.slice(0, 2).join(', ')})` : '');
+      const summary = describe(presence, holder.held, cfg.how, cfg.freeCores) + (presence.reason === 'media' && media.length ? ` (${media.slice(0, 2).join(', ')})` : '');
       if (summary !== lastSummary) {
         lastSummary = summary;
         log(summary);
         writeState();
-        relay.publishSoon();
+        relay.publishSoon(8_000); // a moment's grace, so stepping away and straight back sends one message
       } else if (now - lastWrite >= 60_000) {
         writeState();
       }
@@ -545,8 +752,11 @@ Move or clone the repository somewhere else, e.g. ~/Agent-visualiser, and run th
   }
   const cfg = loadConfig();
   cfg.enabled = true;
+  if (args.includes('--share')) cfg.how = 'share';
   if (args.includes('--pause')) cfg.how = 'pause';
   if (args.includes('--slow')) cfg.how = 'slow';
+  const free = Number(option(args, '--free-cores'));
+  if (Number.isFinite(free) && free >= 1) cfg.freeCores = Math.min(Math.round(free), CORES - 1);
   const away = Number(option(args, '--away-after'));
   if (Number.isFinite(away) && away > 0) cfg.awayAfterSec = Math.max(15, Math.round(away * 60));
   const relay = option(args, '--relay');
@@ -574,11 +784,16 @@ Move or clone the repository somewhere else, e.g. ~/Agent-visualiser, and run th
     }
   }
 
+  const whileHere =
+    cfg.how === 'share'
+      ? `share the Mac so ${cfg.freeCores} of its ${CORES} cores stay free for you (they keep going nearly flat out)`
+      : cfg.how === 'pause'
+        ? 'are paused'
+        : 'move to background priority (the efficiency cores on Apple silicon)';
   console.log(`
 Gentle mode is on. While you're using this Mac, busy jobs started by Claude Code
-or Codex are ${cfg.how === 'pause' ? 'paused' : 'moved to background priority (the efficiency cores on Apple silicon)'};
-after ${Math.round(cfg.awayAfterSec / 6) / 10} minutes without keyboard or mouse (and no video or call on screen)
-they get the whole Mac back. It starts again after a restart.${phone}
+or Codex ${whileHere}; after ${Math.round(cfg.awayAfterSec / 6) / 10} minutes without keyboard or mouse (and no
+video or call on screen) they get the whole Mac back. It starts again after a restart.${phone}
 
   Switch:     npm run gentle -- work | auto | full
   Status:     npm run gentle -- status
@@ -618,10 +833,10 @@ async function setMode(mode: GentleMode) {
   saveConfig(cfg);
   console.log(
     mode === 'work'
-      ? 'Work mode: agent jobs stay slowed until you switch back to auto.'
+      ? 'Work mode: agent jobs stay gentle until you switch back to auto.'
       : mode === 'full'
-        ? 'Full speed: agent jobs are never slowed until you switch back to auto.'
-        : 'Auto: agent jobs are slowed while you use the Mac, and get it back when you step away.',
+        ? 'Full speed: agent jobs have the whole Mac until you switch back to auto.'
+        : 'Auto: agent jobs are gentle while you use the Mac, and get it back when you step away.',
   );
 }
 
@@ -633,10 +848,22 @@ async function status() {
   const fresh = state && Date.now() - state.updatedAt < 120_000 && exec.alive(state.pid);
   console.log(`Gentle mode: ${running ? 'running' : cfg.enabled ? 'installed, not running' : 'not installed'}`);
   console.log(`Mode:        ${cfg.mode}${cfg.mode === 'auto' ? ` (away after ${Math.round(cfg.awayAfterSec / 6) / 10} min)` : ''}`);
-  console.log(`While here:  ${cfg.how === 'pause' ? 'pause' : 'slow (background priority)'} busy agent jobs`);
+  console.log(
+    `While here:  ${cfg.how === 'share' ? `keep ${cfg.freeCores} of ${CORES} cores free (agent jobs share the rest)` : cfg.how === 'pause' ? 'pause busy agent jobs' : 'background priority for busy agent jobs'}`,
+  );
   console.log(`Phone link:  ${cfg.control ? `on, via ${cfg.control.relay}` : 'off'}`);
   if (fresh && state) {
-    console.log(`Now:         ${describe({ here: state.here, reason: state.reason }, new Map(state.held.map((h) => [h.pid, h])), state.how)}`);
+    console.log(`Now:         ${describe({ here: state.here, reason: state.reason }, new Map(state.held.map((h) => [h.pid, h])), state.how, cfg.freeCores)}`);
+    if (state.cpu) {
+      console.log(
+        `CPU:         ${state.cpu.busy !== undefined ? `${state.cpu.busy} of ${state.cpu.cores} cores busy, ` : ''}agents ${state.cpu.agents}${state.cpu.free ? `, ${state.cpu.free} kept free for you` : ''}`,
+      );
+    }
+    if (state.gpu !== undefined) console.log(`GPU:         ${state.gpu}%`);
+    if (state.mem) {
+      const gb = (b: number) => `${(b / 1024 ** 3).toFixed(1)} GB`;
+      console.log(`Memory:      ${gb(state.mem.used)} of ${gb(state.mem.total)}${state.mem.pressure ? `, pressure ${state.mem.pressure}` : ''}${state.mem.swap ? `, ${gb(state.mem.swap)} swapped` : ''}`);
+    }
     for (const h of state.held) console.log(`  ${String(h.pid).padStart(6)}  ${h.how.padEnd(5)}  ${h.name}  since ${new Date(h.since).toLocaleTimeString()}`);
   }
 }
@@ -661,9 +888,9 @@ async function main() {
     case 'plist':
       return void process.stdout.write(plist());
     default:
-      console.log(`Gentle mode: agent jobs slow down while you use this Mac.
+      console.log(`Gentle mode: agent jobs leave you room while you use this Mac.
 
-  npm run gentle -- install [--pause] [--away-after MIN] [--relay URL|off]
+  npm run gentle -- install [--free-cores N] [--slow | --pause] [--away-after MIN] [--relay URL|off]
   npm run gentle -- status
   npm run gentle -- work | auto | full
   npm run gentle -- release
