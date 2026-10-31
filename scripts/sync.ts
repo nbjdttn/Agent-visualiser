@@ -529,6 +529,9 @@ async function main() {
     case 'cloud':
       if (!rest[0]) throw new Error('Usage: npm run sync -- cloud FILE');
       return cloud(rest[0]);
+    case 'plist':
+      // What `install` writes on macOS, for checking.
+      return void process.stdout.write(plist());
     default: {
       const header = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('*/')[0];
       console.log(header.replace(/^\/\*\*?|^ \* ?/gm, '').trim());
