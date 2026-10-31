@@ -28,6 +28,8 @@ export function projectSubtitle(p: ProjectInfo): string {
   switch (p.kind) {
     case 'folder':
       return p.path ?? 'Folder';
+    case 'repo':
+      return p.path ? `${p.path} · cloud sessions` : 'Cloud sessions without a repository';
     case 'openai-project':
       return 'OpenAI API project';
     case 'anthropic-workspace':

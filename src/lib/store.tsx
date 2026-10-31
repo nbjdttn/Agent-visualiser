@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Dataset, ImportInfo, LiveStatus, SessionDetail } from '../../shared/types';
 import type { Built } from '../../core/aggregate';
 import { decode, DEFAULT_FILTERS, resolveRange, type Data, type Filters, type Range } from './data';
+import type { SyncView } from './sync';
 import { todayIndex } from './time';
 
 // ---------------------------------------------------------------------------
@@ -32,10 +33,18 @@ interface DataState {
   clearImports: () => Promise<void>;
   sessionDetail: (key: string) => Promise<SessionDetail | undefined>;
   renameProject: (key: string, name: string | null) => void;
+  /** Automatic updates (phone app only). */
+  sync?: SyncView;
+  syncing: boolean;
+  enableSync: () => Promise<void>;
+  disableSync: () => Promise<void>;
+  checkSync: () => Promise<void>;
 }
 
 const DataContext = createContext<DataState | null>(null);
 const API = './api';
+/** How often the phone looks for automatic updates while the app is open. */
+const SYNC_EVERY_MS = 5 * 60_000;
 const NAMES_KEY = 'av.projectNames.v1';
 
 async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -88,6 +97,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [importError, setImportError] = useState<string>();
   const [lastImported, setLastImported] = useState<ImportInfo[]>();
   const [names, setNames] = useState<Record<string, string>>(loadNames);
+  const [sync, setSync] = useState<SyncView>();
+  const [syncing, setSyncing] = useState(false);
   const versionRef = useRef<number | undefined>(undefined);
   const loadingRef = useRef(false);
   const builtRef = useRef<Built | undefined>(undefined);
@@ -122,24 +133,68 @@ export function DataProvider({ children }: { children: ReactNode }) {
   }, [loadServerDataset]);
 
   // --- device mode -----------------------------------------------------------
-  const loadDeviceDataset = useCallback(async () => {
+  const loadDeviceDataset = useCallback(async (): Promise<SyncView | undefined> => {
     setRefetching(true);
     try {
-      const device = await import('./device');
-      const stored = await device.listImports();
+      const [device, syncLib] = await Promise.all([import('./device'), import('./sync')]);
+      const [stored, synced] = await Promise.all([device.listImports(), syncLib.loadSynced()]);
       const version = (versionRef.current ?? 0) + 1;
       versionRef.current = version;
-      const built = device.buildDeviceDataset(stored, version);
+      const built = device.buildDeviceDataset(stored, version, synced);
       builtRef.current = built;
       setDataset(built.dataset);
       setImports(stored.map((s) => s.info));
+      setSync(synced.view);
       setError(undefined);
+      return synced.view;
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      return undefined;
     } finally {
       setRefetching(false);
     }
   }, []);
+
+  // --- automatic updates (device mode) ----------------------------------------
+  const lastSyncRef = useRef(0);
+  const checkSync = useCallback(async () => {
+    lastSyncRef.current = Date.now();
+    setSyncing(true);
+    try {
+      const syncLib = await import('./sync');
+      const changed = await syncLib.checkForUpdates();
+      if (changed) await loadDeviceDataset();
+      else setSync((await syncLib.loadSynced()).view);
+    } finally {
+      setSyncing(false);
+    }
+  }, [loadDeviceDataset]);
+
+  const enableSync = useCallback(async () => {
+    const syncLib = await import('./sync');
+    await syncLib.enableSync();
+    await loadDeviceDataset();
+    await checkSync();
+  }, [loadDeviceDataset, checkSync]);
+
+  const disableSync = useCallback(async () => {
+    const syncLib = await import('./sync');
+    await syncLib.disableSync();
+    await loadDeviceDataset();
+  }, [loadDeviceDataset]);
+
+  useEffect(() => {
+    if (mode !== 'device' || !sync?.enabled) return;
+    const maybeCheck = () => {
+      if (document.visibilityState === 'visible' && Date.now() - lastSyncRef.current > 60_000) void checkSync();
+    };
+    const timer = window.setInterval(maybeCheck, SYNC_EVERY_MS);
+    document.addEventListener('visibilitychange', maybeCheck);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', maybeCheck);
+    };
+  }, [mode, sync?.enabled, checkSync]);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,7 +204,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
       setMode(m);
       if (m === 'device') {
-        await loadDeviceDataset();
+        const view = await loadDeviceDataset();
+        if (view?.enabled && !cancelled) void checkSync();
         return;
       }
       await loadServerDataset();
@@ -168,10 +224,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
       window.clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [loadServerDataset, loadDeviceDataset, pollLive]);
+  }, [loadServerDataset, loadDeviceDataset, pollLive, checkSync]);
 
   const refresh = useCallback(async () => {
-    if (mode === 'device') return loadDeviceDataset();
+    if (mode === 'device') {
+      if (sync?.enabled) await checkSync();
+      else await loadDeviceDataset();
+      return;
+    }
     setRefetching(true);
     try {
       await getJson(`${API}/refresh`, { method: 'POST', headers: WRITE_HEADERS });
@@ -180,7 +240,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
     await loadServerDataset();
     await pollLive();
-  }, [mode, loadDeviceDataset, loadServerDataset, pollLive]);
+  }, [mode, sync?.enabled, checkSync, loadDeviceDataset, loadServerDataset, pollLive]);
 
   const importFile = useCallback(
     async (file: File): Promise<ImportInfo[] | undefined> => {
@@ -291,8 +351,34 @@ export function DataProvider({ children }: { children: ReactNode }) {
       clearImports,
       sessionDetail,
       renameProject,
+      sync,
+      syncing,
+      enableSync,
+      disableSync,
+      checkSync,
     }),
-    [mode, data, live, error, refetching, refresh, imports, importing, importError, lastImported, importFile, removeImport, clearImports, sessionDetail, renameProject],
+    [
+      mode,
+      data,
+      live,
+      error,
+      refetching,
+      refresh,
+      imports,
+      importing,
+      importError,
+      lastImported,
+      importFile,
+      removeImport,
+      clearImports,
+      sessionDetail,
+      renameProject,
+      sync,
+      syncing,
+      enableSync,
+      disableSync,
+      checkSync,
+    ],
   );
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

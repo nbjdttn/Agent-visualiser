@@ -32,6 +32,11 @@ export interface RawEvent {
   estimated?: boolean;
   tools?: string[];
   cost?: number;
+  /**
+   * An hourly roll-up from automatic updates: several responses summed, with
+   * the cost already worked out where the responses were logged.
+   */
+  rollup?: boolean;
 }
 
 export interface SessionMeta {
@@ -120,7 +125,7 @@ export interface StoredSnapshot {
 
 export function serializeSnapshot(s: SourceSnapshot): StoredSnapshot {
   return {
-    events: s.events.map(({ cost: _cost, ...e }) => e),
+    events: s.events.map(({ cost, ...e }) => (e.rollup ? { ...e, cost } : e)),
     sessions: [...s.sessions.values()].map(({ promptIds, ...rest }) => ({ ...rest, prompts: promptIds.size })),
     projects: [...s.projects.values()].map(({ branches, ...rest }) => ({ ...rest, branches: branches ? [...branches] : undefined })),
     codexLimits: s.codexLimits,

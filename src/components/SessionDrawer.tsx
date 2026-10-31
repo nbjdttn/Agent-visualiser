@@ -136,7 +136,7 @@ function SessionBody({ data, sessionKey, onClose }: { data: Data; sessionKey: st
       <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Stat label="Tokens" value={compact(tokens)} />
         <Stat label="Est. cost" value={usd(s.cost)} />
-        <Stat label={s.estimated ? 'Replies' : 'Requests'} value={full(s.requests)} />
+        <Stat label={s.estimated ? 'Replies' : 'Requests'} value={s.requests ? full(s.requests) : '—'} />
         <Stat label="Cache hit" value={pct(cacheHitRate(totals))} />
       </div>
 
@@ -150,8 +150,12 @@ function SessionBody({ data, sessionKey, onClose }: { data: Data; sessionKey: st
 
       <section className="mt-6">
         <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-[14px] font-semibold">{s.estimated ? 'Tokens per reply (estimated)' : 'Tokens per request'}</h3>
-          <span className="text-[12px] text-muted">{detail ? `${detail.events.length} ${s.estimated ? 'replies' : 'requests'}` : ''}</span>
+          <h3 className="text-[14px] font-semibold">
+            {detail?.hourly ? 'Tokens per hour' : s.estimated ? 'Tokens per reply (estimated)' : 'Tokens per request'}
+          </h3>
+          <span className="text-[12px] text-muted">
+            {detail ? `${detail.events.length} ${detail.hourly ? (detail.events.length === 1 ? 'hour' : 'hours') : s.estimated ? 'replies' : 'requests'}` : ''}
+          </span>
         </div>
         {chart && <Legend series={chart.series} hidden={hidden} onChange={setHidden} />}
         <div className="card mt-3 p-3">
@@ -169,9 +173,13 @@ function SessionBody({ data, sessionKey, onClose }: { data: Data; sessionKey: st
           )}
         </div>
         <p className="mt-2 text-[12px] text-muted">
-          {s.estimated
-            ? 'Each bar is one reply. Chat exports have no token counts, so these are estimated from message length: each reply re-reads the conversation so far.'
-            : 'Each bar is one model response. Cache reads grow as the conversation gets longer; a drop usually means the context was compacted.'}
+          {detail?.hourly
+            ? s.requests
+              ? 'Each bar is one hour of this session, summed on your computer before it was sent to this phone.'
+              : 'Each bar is one hour. Cloud sessions report running totals, so usage is spread over the time between readings.'
+            : s.estimated
+              ? 'Each bar is one reply. Chat exports have no token counts, so these are estimated from message length: each reply re-reads the conversation so far.'
+              : 'Each bar is one model response. Cache reads grow as the conversation gets longer; a drop usually means the context was compacted.'}
         </p>
       </section>
 

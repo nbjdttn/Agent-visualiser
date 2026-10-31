@@ -180,7 +180,7 @@ export function ProjectsPage({ data }: { data: Data }) {
       <Card className={`p-4 sm:p-5 ${refetching ? 'refetching' : ''}`}>
         <CardHeader
           title="All projects"
-          subtitle="Folders your agents worked in, ChatGPT and Claude projects, and API projects"
+          subtitle="Folders and repositories your agents worked in, ChatGPT and Claude projects, and API projects"
           actions={
             <label className="relative">
               <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" aria-hidden />
@@ -206,6 +206,7 @@ export function ProjectsPage({ data }: { data: Data }) {
         </div>
         <div className="mt-3 flex flex-wrap gap-2 px-1 text-[12px] text-muted">
           <Pill>Folders come from Claude Code and Codex logs</Pill>
+          {data.projects.some((p) => p.kind === 'repo') && <Pill>Repositories are where Claude Code cloud sessions worked</Pill>}
           <Pill>ChatGPT projects, custom GPTs and Claude projects come from your chat exports</Pill>
         </div>
       </Card>

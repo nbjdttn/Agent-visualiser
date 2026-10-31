@@ -107,11 +107,12 @@ export interface ModelInfo {
 }
 
 /**
- * folder: where an agent ran; openai-project / anthropic-workspace: API
- * groupings; chat-project: a ChatGPT project, custom GPT or Claude project;
- * chats: everything else in a chat export.
+ * folder: where an agent ran on a computer; repo: the GitHub repository a
+ * Claude Code cloud session worked in; openai-project / anthropic-workspace:
+ * API groupings; chat-project: a ChatGPT project, custom GPT or Claude
+ * project; chats: everything else in a chat export.
  */
-export type ProjectKind = 'folder' | 'openai-project' | 'anthropic-workspace' | 'chat-project' | 'chats';
+export type ProjectKind = 'folder' | 'repo' | 'openai-project' | 'anthropic-workspace' | 'chat-project' | 'chats';
 
 export interface ProjectInfo {
   key: string;
@@ -289,4 +290,6 @@ export interface SessionEvent {
 export interface SessionDetail {
   key: string;
   events: SessionEvent[];
+  /** Events are hourly totals (automatic updates), not single requests. */
+  hourly?: boolean;
 }

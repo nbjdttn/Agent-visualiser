@@ -53,7 +53,7 @@ export function ProjectDetailPage({ data, projectKey }: { data: Data; projectKey
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex min-w-0 items-start gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-ink-2">
-                {p.kind === 'folder' ? <FolderGit2 size={18} /> : isChat ? <MessagesSquare size={18} /> : <Globe size={18} />}
+                {p.kind === 'folder' || p.kind === 'repo' ? <FolderGit2 size={18} /> : isChat ? <MessagesSquare size={18} /> : <Globe size={18} />}
               </div>
               <div className="min-w-0">
                 <div className="flex min-w-0 items-center gap-1.5">
@@ -73,7 +73,7 @@ export function ProjectDetailPage({ data, projectKey }: { data: Data; projectKey
                     </button>
                   )}
                 </div>
-                <p className={`truncate text-[12px] text-muted ${p.kind === 'folder' ? 'font-mono' : ''}`}>{projectSubtitle(p)}</p>
+                <p className={`truncate text-[12px] text-muted ${p.kind === 'folder' || p.kind === 'repo' ? 'font-mono' : ''}`}>{projectSubtitle(p)}</p>
                 <div className="mt-2.5 flex flex-wrap gap-1.5">
                   {providers.map((pr) => (
                     <ProviderBadge key={pr} provider={pr} />

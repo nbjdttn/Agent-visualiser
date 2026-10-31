@@ -78,7 +78,7 @@ export function buildDataset(args: {
         if (seen.has(e.key)) continue;
         seen.add(e.key);
       }
-      e.cost = pricing.cost(e.model, { ...e, aggregated: e.daily });
+      if (!e.rollup) e.cost = pricing.cost(e.model, { ...e, aggregated: e.daily });
       events.push(e);
     }
     for (const [k, s] of snap.sessions) sessions.set(k, s);

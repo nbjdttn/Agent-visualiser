@@ -17,6 +17,7 @@ import { SOURCE_META, type ImportInfo, type SourceId, type SourceStatus } from '
 import type { Data } from '../lib/data';
 import { compact, dateTime, relative } from '../lib/format';
 import { useData } from '../lib/store';
+import { AutoUpdatesCard } from '../components/AutoUpdates';
 import { Card, CardHeader, Kbd, ProviderDot } from '../components/ui';
 
 const fmtDay = (ts?: number) => (ts ? new Date(ts).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : '');
@@ -175,8 +176,9 @@ export function SourcesPage({ data }: { data: Data }) {
         <Card className="border-dashed p-5">
           <h2 className="text-[15px] font-semibold">You're looking at demo data</h2>
           <p className="mt-1 max-w-3xl text-[13.5px] leading-relaxed text-ink-2">
-            Import your ChatGPT or claude.ai history below and the dashboard switches to your own usage.
-            {device ? ' Everything is read and stored on this device; nothing is uploaded.' : ''}
+            {device
+              ? 'Turn on automatic updates or import your ChatGPT or claude.ai history below, and the dashboard switches to your own usage. Everything is kept on this device.'
+              : 'Import your ChatGPT or claude.ai history below and the dashboard switches to your own usage.'}
           </p>
         </Card>
       )}
@@ -194,6 +196,13 @@ export function SourcesPage({ data }: { data: Data }) {
             Open overview →
           </a>
         </Card>
+      )}
+
+      {device && (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-muted">Coding agents, automatically</h2>
+          <AutoUpdatesCard />
+        </section>
       )}
 
       <section className="flex flex-col gap-3">
@@ -229,16 +238,16 @@ export function SourcesPage({ data }: { data: Data }) {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-muted">Coding agents</h2>
+        <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-muted">{device ? 'Agent log files' : 'Coding agents'}</h2>
         {device ? (
           <Card className="flex flex-col gap-3 p-5">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-[16px] font-semibold">Claude Code and Codex sessions</h3>
+                <h3 className="text-[16px] font-semibold">Import Claude Code or Codex logs by hand</h3>
                 <p className="mt-1 text-[13.5px] leading-relaxed text-ink-2">
-                  Both keep exact token logs on the computer they run on (<Kbd>~/.claude/projects</Kbd> and{' '}
-                  <Kbd>~/.codex/sessions</Kbd>). If you ever have those files, zip the folder or pick single{' '}
-                  <Kbd>.jsonl</Kbd> files to see every session by project folder, with exact tokens and tools.
+                  Automatic updates above are easier. Without them, you can zip <Kbd>~/.claude/projects</Kbd> or{' '}
+                  <Kbd>~/.codex/sessions</Kbd> on a computer, or pick single <Kbd>.jsonl</Kbd> files, to see those sessions
+                  here. Logs that automatic updates already send are not counted twice.
                 </p>
               </div>
             </div>
