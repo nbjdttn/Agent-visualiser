@@ -8,13 +8,11 @@ import {
   Holder,
   jobNames,
   coresBusy,
-  parseAudioPlaying,
   parseCpuTime,
   parseGpuUtil,
   parsePressure,
   parseSwap,
   parseVmStat,
-  parseDisplayAssertions,
   parseRemoteSession,
   parseIdleSeconds,
   parseNames,
@@ -52,18 +50,9 @@ describe('reading the Mac', () => {
     expect(parseIdleSeconds('nothing here')).toBeUndefined();
   });
 
-  it('counts videos and calls, not keep-awake tools, remote-desktop sessions or audio', () => {
-    expect(parseDisplayAssertions(PMSET)).toEqual([{ pid: 1234, name: 'Google Chrome' }]);
-  });
-
-  it('sees a connected remote-desktop session', () => {
+  it('sees a connected remote-desktop session, not a video, call or keep-awake tool', () => {
     expect(parseRemoteSession(PMSET)).toBe(true);
     expect(parseRemoteSession(PMSET.replace(/.*remoting_me2me_host.*\n/, ''))).toBe(false);
-  });
-
-  it('counts a video or call only while sound is playing', () => {
-    expect(parseAudioPlaying(PMSET)).toBe(true);
-    expect(parseAudioPlaying(PMSET.replace(/.*coreaudiod.*\n/, ''))).toBe(false);
   });
 
   it('reads GPU use, memory, memory pressure and swap', () => {
@@ -118,14 +107,12 @@ describe('reading the Mac', () => {
   });
 
   it('decides whether someone is at the Mac', () => {
-    const base = { media: false, mode: 'auto' as const, awayAfterSec: 120 };
+    const base = { mode: 'auto' as const, awayAfterSec: 120 };
     expect(decidePresence({ ...base, idleSec: 3 })).toEqual({ here: true, reason: 'input' });
     expect(decidePresence({ ...base, idleSec: 600 })).toEqual({ here: false, reason: 'away' });
-    expect(decidePresence({ ...base, idleSec: 590, media: true })).toEqual({ here: true, reason: 'media' });
-    expect(decidePresence({ ...base, idleSec: 610, media: true })).toEqual({ here: false, reason: 'away' }); // 10 min at most
     expect(decidePresence({ ...base, idleSec: 300, remote: true })).toEqual({ here: true, reason: 'remote' });
     expect(decidePresence({ ...base, idleSec: 610, remote: true })).toEqual({ here: false, reason: 'away' });
-    expect(decidePresence({ ...base, idleSec: 3 * 3600, media: true })).toEqual({ here: false, reason: 'away' });
+    expect(decidePresence({ ...base, idleSec: 3 * 3600, remote: true })).toEqual({ here: false, reason: 'away' });
     expect(decidePresence({ ...base, idleSec: undefined })).toEqual({ here: false, reason: 'unknown' });
     expect(decidePresence({ ...base, idleSec: 9999, mode: 'work' })).toEqual({ here: true, reason: 'work' });
     expect(decidePresence({ ...base, idleSec: 1, mode: 'full' })).toEqual({ here: false, reason: 'full' });

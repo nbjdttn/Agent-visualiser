@@ -107,7 +107,7 @@ Agents running big jobs locally (simulations, builds) can make the Mac laggy jus
 mode is a small background helper that watches for you:
 
 - **You're at the Mac** (keyboard or mouse in the last 2 minutes; or, for up to 10 minutes after that, connected from
-  another computer with Chrome Remote Desktop or Screen Sharing, or a call or video with sound on screen): busy jobs
+  another computer with Chrome Remote Desktop or Screen Sharing; a video or call on screen doesn't count): busy jobs
   started by Claude Code or Codex share the Mac so that **2 cores stay free for you**. They keep their priority and run
   part of every 50 ms, just enough less that together they use at most all-but-two cores. If they're using less than
   that anyway, nothing changes.
