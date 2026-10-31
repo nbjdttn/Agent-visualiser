@@ -72,24 +72,26 @@ export function OverviewPage({ data }: { data: Data }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 lg:gap-5">
-        <StatTile label="Cost" value={usd(t.cost)} delta={delta(t.cost, p.cost)} spark={trend.totals.map((x) => x.cost)} />
-        <StatTile label="Sessions" value={full(sessions.length)} delta={delta(sessions.length, prevSessions.length)} spark={sessionSpark} />
-        <StatTile
-          label="Per day"
-          value={compact(perDay(t.tokens, range.days))}
-          delta={delta(perDay(t.tokens, range.days), perDay(p.tokens, prev.days))}
-          spark={trend.totals.map((x) => x.tokens)}
-        />
-        <StatTile label="Busiest day" value={busiest ? compact(busiest[1].tokens) : '–'} hint={busiest ? dayLabel(busiest[0], { weekday: true }) : undefined} />
+      <div className="grid gap-4 lg:grid-cols-12 lg:gap-5">
+        <div className="min-w-0 lg:col-span-7">
+          <HourCard facts={agentFacts} refetching={refetching} />
+        </div>
+        <div className="grid grid-cols-2 gap-4 lg:col-span-5 lg:gap-5">
+          <StatTile label="Cost" value={usd(t.cost)} delta={delta(t.cost, p.cost)} spark={trend.totals.map((x) => x.cost)} />
+          <StatTile label="Sessions" value={full(sessions.length)} delta={delta(sessions.length, prevSessions.length)} spark={sessionSpark} />
+          <StatTile
+            label="Per day"
+            value={compact(perDay(t.tokens, range.days))}
+            delta={delta(perDay(t.tokens, range.days), perDay(p.tokens, prev.days))}
+            spark={trend.totals.map((x) => x.tokens)}
+          />
+          <StatTile label="Busiest day" value={busiest ? compact(busiest[1].tokens) : '–'} hint={busiest ? dayLabel(busiest[0], { weekday: true }) : undefined} />
+        </div>
       </div>
 
       <CostCard data={data} facts={facts} range={range} refetching={refetching} />
 
-      <div className="grid gap-4 lg:grid-cols-2 lg:gap-5">
-        <HourCard facts={agentFacts} refetching={refetching} />
-        <BiggestSessionsCard data={data} sessions={sessions} refetching={refetching} />
-      </div>
+      <BiggestSessionsCard data={data} sessions={sessions} refetching={refetching} />
 
       <div className="grid gap-4 lg:grid-cols-2 lg:gap-5">
         <ProjectsCard data={data} facts={facts} refetching={refetching} />
