@@ -38,6 +38,7 @@ export function UsageOverTime({
   defaultSplit = 'provider',
   refetching,
   height = 280,
+  simple = false,
 }: {
   data: Data;
   facts: Fact[];
@@ -48,6 +49,8 @@ export function UsageOverTime({
   defaultSplit?: Split;
   refetching?: boolean;
   height?: number;
+  /** Just the chart and its legend: no metric, bucket, chart-type or split switches. */
+  simple?: boolean;
 }) {
   const [metric, setMetric] = useState<Metric>('tokens');
   const [split, setSplit] = useState<Split>(defaultSplit);
@@ -77,6 +80,7 @@ export function UsageOverTime({
       subtitle={subtitle}
       refetching={refetching}
       actions={
+        simple ? undefined : (
         <>
           <Segmented
             label="Metric"
@@ -108,8 +112,12 @@ export function UsageOverTime({
             {kind === 'bar' ? <AreaChart size={15} /> : <BarChart3 size={15} />}
           </button>
         </>
+        )
       }
       legend={
+        simple ? (
+          <Legend series={series} hidden={hidden} onChange={setHidden} values={seriesTotals.map(fmt)} />
+        ) : (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Segmented
             label="Split by"
@@ -124,6 +132,7 @@ export function UsageOverTime({
           />
           <Legend series={series} hidden={hidden} onChange={setHidden} values={seriesTotals.map(fmt)} />
         </div>
+        )
       }
       table={() => (
         <table className="w-full text-[12.5px]">
