@@ -53,6 +53,7 @@ import {
   type Presence,
   type Proc,
 } from './gentle-lib.js';
+import { reloadAgent } from './launchd.js';
 
 const pexec = promisify(execFile);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -557,12 +558,7 @@ Move or clone the repository somewhere else, e.g. ~/Agent-visualiser, and run th
   fs.mkdirSync(path.dirname(PLIST), { recursive: true });
   fs.mkdirSync(path.dirname(LOG), { recursive: true });
   fs.writeFileSync(PLIST, plist());
-  await launchctl('bootout', `${domain()}/${LABEL}`).catch(() => undefined);
-  try {
-    await launchctl('bootstrap', domain(), PLIST);
-  } catch {
-    await launchctl('load', '-w', PLIST);
-  }
+  await reloadAgent(LABEL, PLIST);
 
   // Send the phone its Work mode switch with a fresh usage update, if updates are set up here.
   let phone = '';

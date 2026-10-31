@@ -53,6 +53,7 @@ import {
   type SyncPayload,
 } from '../core/sync/payload.js';
 import { refreshPricing } from '../server/pricing.js';
+import { reloadAgent } from './launchd.js';
 import { ClaudeCodeSource, claudeProjectRoots } from '../server/sources/claudeCode.js';
 import { CodexSource, codexRoots } from '../server/sources/codex.js';
 
@@ -459,13 +460,7 @@ Check that \`git push\` works in ${ROOT} (it needs write access to ${await git([
   fs.mkdirSync(path.dirname(PLIST), { recursive: true });
   fs.mkdirSync(path.dirname(LOG), { recursive: true });
   fs.writeFileSync(PLIST, plist());
-  const domain = `gui/${process.getuid?.() ?? 501}`;
-  await launchctl('bootout', `${domain}/${LABEL}`).catch(() => undefined);
-  try {
-    await launchctl('bootstrap', domain, PLIST);
-  } catch {
-    await launchctl('load', '-w', PLIST);
-  }
+  await reloadAgent(LABEL, PLIST);
   console.log(`
 Installed. This Mac now sends its Claude Code and Codex usage to your phone in the
 background, at most every ${INTERVAL_MS / 60_000} minutes while there's something new. It starts again after a restart.
