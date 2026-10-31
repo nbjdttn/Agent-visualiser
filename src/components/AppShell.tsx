@@ -164,11 +164,11 @@ function TabBar({ route }: { route: Route }) {
               href={href(item.route)}
               aria-current={active ? 'page' : undefined}
               className={clsx(
-                'flex min-h-[64px] flex-1 flex-col items-center justify-center gap-1 text-[13.5px] font-semibold',
+                'flex min-h-[54px] flex-1 flex-col items-center justify-center gap-0.5 text-[11.5px] font-medium',
                 active ? 'text-ink' : 'text-muted',
               )}
             >
-              <Icon size={26} strokeWidth={active ? 2.3 : 1.9} aria-hidden />
+              <Icon size={22} strokeWidth={active ? 2.3 : 1.9} aria-hidden />
               {item.short}
             </a>
           );
@@ -294,7 +294,7 @@ export function AppShell({
             {filters}
           </div>
         </header>
-        <main className="mx-auto max-w-[1480px] px-4 pb-[calc(92px_+_env(safe-area-inset-bottom))] pt-4 sm:px-6 lg:px-8 lg:py-6">
+        <main className="mx-auto max-w-[1480px] px-4 pb-[calc(80px_+_env(safe-area-inset-bottom))] pt-4 sm:px-6 lg:px-8 lg:py-6">
           {data?.raw.demo && route.page !== 'sources' && (
             <div className="mb-4 lg:hidden">
               <DemoNote compactLayout />

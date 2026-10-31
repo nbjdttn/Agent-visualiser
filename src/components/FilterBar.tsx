@@ -29,6 +29,7 @@ export function FilterBar({ hideProject }: { hideProject?: boolean }) {
   const provider = (
     <Segmented
       label="Provider"
+      size="md"
       value={filters.provider}
       onChange={(p) => setFilters({ provider: p })}
       options={[
@@ -36,8 +37,8 @@ export function FilterBar({ hideProject }: { hideProject?: boolean }) {
         {
           value: 'anthropic',
           label: (
-            <span className="inline-flex items-center gap-1.5">
-              <ProviderDot provider="anthropic" size={7} />
+            <span className="inline-flex items-center gap-[5px]">
+              <ProviderDot provider="anthropic" size={8} />
               Claude
             </span>
           ),
@@ -45,8 +46,8 @@ export function FilterBar({ hideProject }: { hideProject?: boolean }) {
         {
           value: 'openai',
           label: (
-            <span className="inline-flex items-center gap-1.5">
-              <ProviderDot provider="openai" size={7} />
+            <span className="inline-flex items-center gap-[5px]">
+              <ProviderDot provider="openai" size={8} />
               OpenAI
             </span>
           ),
@@ -58,7 +59,7 @@ export function FilterBar({ hideProject }: { hideProject?: boolean }) {
   return (
     <>
       {/* Phone: date, provider and a sheet with the rest. */}
-      <div className="flex flex-wrap items-center gap-2 max-[389px]:gap-1.5 lg:hidden">
+      <div className="flex flex-wrap items-center gap-1.5 lg:hidden">
         <DateRangePicker compactLabel />
         {provider}
         {data && (
@@ -157,7 +158,7 @@ function DateRangePicker({ compactLabel }: { compactLabel?: boolean }) {
       width={280}
       trigger={(open) => (
         <TriggerButton open={open} active>
-          <CalendarDays size={17} className="text-muted" aria-hidden />
+          <CalendarDays size={17} className={compactLabel ? 'hidden text-muted lg:inline' : 'text-muted'} aria-hidden />
           <span>{filters.preset === 'custom' ? 'Custom' : compactLabel ? preset?.short : presetLabel(filters)}</span>
           {!compactLabel && <span className="hidden font-normal text-muted md:inline">· {rangeLabel(range.from, range.to)}</span>}
           <ChevronDown size={16} className="text-muted" aria-hidden />
