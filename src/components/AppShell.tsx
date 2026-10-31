@@ -1,10 +1,11 @@
 import clsx from 'clsx';
-import { Activity, Cpu, Database, FolderKanban, LayoutDashboard, Palette, RotateCw, ScrollText, Upload } from 'lucide-react';
-import { useId, useState, type ReactNode } from 'react';
+import { Activity, Cpu, Database, FolderKanban, LayoutDashboard, Palette, RotateCw, ScrollText, Share } from 'lucide-react';
+import { useCallback, useId, useState, type ReactNode } from 'react';
 import { compact, usd } from '../lib/format';
 import { href, type Route } from '../lib/router';
 import { COMBOS, PALETTES, THEMES, useData, usePalette, useTheme } from '../lib/store';
 import { Popover } from './Popover';
+import { ShareSheet } from './ShareSheet';
 import { ProviderDot } from './ui';
 
 interface NavItem {
@@ -263,7 +264,10 @@ export function AppShell({
 }) {
   const { refresh, refetching, live, mode, data } = useData();
   const [spinning, setSpinning] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const busy = spinning || refetching || live?.scanning;
+  const canShare = !!data && route.page !== 'sources' && route.page !== 'live';
+  const closeShare = useCallback(() => setSharing(false), []);
 
   return (
     <div className="min-h-screen">
@@ -301,15 +305,16 @@ export function AppShell({
                   <span className="hidden sm:inline">Refresh</span>
                 </button>
               )}
-              {mode === 'device' && route.page !== 'sources' && (
-                <a
-                  href="#/sources"
+              {canShare && (
+                <button
+                  type="button"
+                  onClick={() => setSharing(true)}
                   className="inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-[13px] border border-line bg-surface px-3 text-[14px] font-medium text-ink-2 hover:text-ink lg:h-9 lg:min-w-0 lg:rounded-[10px] lg:px-2.5 lg:text-[13px]"
-                  aria-label="Import data"
+                  aria-label="Share"
                 >
-                  <Upload size={20} aria-hidden />
-                  <span className="hidden sm:inline">Import</span>
-                </a>
+                  <Share size={20} aria-hidden />
+                  <span className="hidden sm:inline">Share</span>
+                </button>
               )}
               <ThemeToggle />
             </div>
@@ -326,6 +331,7 @@ export function AppShell({
         </main>
       </div>
       <TabBar route={route} />
+      {sharing && canShare && <ShareSheet route={route} onClose={closeShare} />}
     </div>
   );
 }

@@ -30,6 +30,11 @@ by folder and a live view of agents at work. See [On a computer](#on-a-computer-
 
 Until you import something, the app shows a generated demo history so you can look around.
 
+To show someone your usage, tap the **Share** button at the top. It makes a picture of the period you're looking at
+(tokens, cost, Claude/OpenAI split, a bar for every day, your top three projects) and opens the iPhone share sheet.
+Switch off **Show project names** to list your top models instead. **Share app link** sends the app itself. The
+picture is drawn on the phone; nothing is uploaded.
+
 ### Automatic updates
 
 Claude Code and Codex keep exact token logs on the computer they run on, and Claude Code cloud sessions (on the web
