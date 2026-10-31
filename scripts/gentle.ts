@@ -561,6 +561,8 @@ Move or clone the repository somewhere else, e.g. ~/Agent-visualiser, and run th
   // Send the phone its Work mode switch with a fresh usage update, if updates are set up here.
   let phone = '';
   if (cfg.control && fs.existsSync(path.join(CONFIG_DIR, 'sync.json'))) {
+    // The usage sync may still be running older code that doesn't send the switch: restart it.
+    await launchctl('kickstart', '-k', `${domain()}/io.github.agent-visualiser.sync`).catch(() => undefined);
     try {
       const tsxCli = createRequire(import.meta.url).resolve('tsx/cli');
       await pexec(process.execPath, [tsxCli, path.join(ROOT, 'scripts', 'sync.ts'), 'once'], { cwd: ROOT, timeout: 180_000 });
