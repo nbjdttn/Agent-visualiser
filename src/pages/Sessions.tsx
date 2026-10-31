@@ -29,7 +29,7 @@ export function SessionsPage({ data }: { data: Data }) {
   return (
     <Card className={`p-4 sm:p-5 ${refetching ? 'refetching' : ''}`}>
       <CardHeader
-        title="Agent sessions"
+        title="Sessions & chats"
         subtitle={`${shown.length.toLocaleString('en-US')} sessions · ${compact(tokens)} tokens · ${usd(cost)} estimated`}
         actions={
           <label className="relative">
@@ -51,7 +51,7 @@ export function SessionsPage({ data }: { data: Data }) {
           onRowClick={(s) => openSession(s.key)}
           initialSort={{ key: 'start', dir: 'desc' }}
           pageSize={40}
-          emptyLabel="No agent sessions match these filters"
+          emptyLabel="Nothing matches these filters"
         />
       </div>
     </Card>

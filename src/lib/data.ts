@@ -43,7 +43,9 @@ export interface Data {
   sessionByKey: Map<string, SessionInfo>;
 }
 
-export function decode(ds: Dataset): Data {
+/** Turn the compact dataset into objects. `names` holds project names the user chose. */
+export function decode(ds: Dataset, names: Record<string, string> = {}): Data {
+  const projects = ds.projects.map((p) => (names[p.key] ? { ...p, name: names[p.key] } : p));
   let minDay = Infinity;
   let maxDay = -Infinity;
   const facts: Fact[] = ds.facts.map((t) => {
@@ -71,7 +73,7 @@ export function decode(ds: Dataset): Data {
     raw: ds,
     facts,
     models: ds.models,
-    projects: ds.projects,
+    projects,
     sessions: ds.sessions,
     sourceIds: ds.sourceIds,
     minDay: Number.isFinite(minDay) ? minDay : 0,

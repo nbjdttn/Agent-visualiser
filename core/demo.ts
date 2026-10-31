@@ -1,6 +1,6 @@
-import type { CodexLimits, SourceId, SourceStatus } from '../../shared/types.js';
-import { newSessionMeta, type ProjectHint, type RawEvent, type SessionMeta, type SourceSnapshot } from '../model.js';
-import { DAY_MS, HOUR_MS, MINUTE_MS, displayPath, folderName, homeJoin, normalizeFolder } from '../util.js';
+import { SOURCE_IDS, SOURCE_META, type CodexLimits, type SourceId, type SourceStatus } from '../shared/types';
+import { newSessionMeta, type ProjectHint, type RawEvent, type SessionMeta, type SourceSnapshot } from './model';
+import { DAY_MS, HOUR_MS, MINUTE_MS, displayPath, folderName, normalizeFolder } from './util';
 
 /**
  * Generates a realistic, deterministic usage history so the dashboard has
@@ -172,6 +172,43 @@ const CODEX_TOOLS: [string, number][] = [
   ['mcp__github__get_issue', 2],
 ];
 
+const CHAT_TITLES = [
+  'Explain backpropagation for first-years',
+  'Rubric for the final project',
+  'Make this abstract more concise',
+  'Reading list on diffusion models',
+  'Email to the exam board about extensions',
+  'Quiz questions on gradient descent',
+  'Feedback on essay structure',
+  'Summarise this paper',
+  'Slides outline for week 7',
+  'Pandas groupby error',
+  'Ideas for a seminar icebreaker',
+  'Compare two statistical tests',
+  'Plan a weekend in the Lake District',
+  'Dinner party menu for six',
+  'Translate the course welcome note',
+  'Proofread my reference letter',
+];
+
+const CHAT_PROJECTS: { key: string; name: string; source: 'chatgpt' | 'claude-ai'; share: number }[] = [
+  { key: 'chatgpt:project:g-p-lecture-prep', name: 'Lecture prep', source: 'chatgpt', share: 0.3 },
+  { key: 'chatgpt:gpt:g-paper-summariser', name: 'Paper summariser (GPT)', source: 'chatgpt', share: 0.15 },
+  { key: 'chatgpt:chats', name: 'ChatGPT chats', source: 'chatgpt', share: 0.55 },
+  { key: 'claude-ai:project:paper-revisions', name: 'Paper revisions', source: 'claude-ai', share: 0.35 },
+  { key: 'claude-ai:project:grant-proposal', name: 'Grant proposal', source: 'claude-ai', share: 0.12 },
+  { key: 'claude-ai:chats', name: 'claude.ai chats', source: 'claude-ai', share: 0.53 },
+];
+
+export interface DemoOptions {
+  /** Include Claude Code and Codex sessions (logs from a computer). */
+  agents?: boolean;
+  /** Include organisation API usage (needs a server in real life). */
+  apis?: boolean;
+  /** Include sessions that are running right now. */
+  live?: boolean;
+}
+
 export class DemoSource {
   private rand: () => number;
   private memo?: SourceSnapshot;
@@ -181,10 +218,79 @@ export class DemoSource {
   private live: { key: string; source: SourceId; projectKey: string; model: string; ctx: number }[] = [];
   private lastTick = 0;
   private limits!: CodexLimits;
+  private readonly opts: Required<DemoOptions>;
 
-  constructor(private now = Date.now(), seed = 20261031) {
+  constructor(
+    private now = Date.now(),
+    seed = 20261031,
+    opts: DemoOptions = {},
+  ) {
+    this.opts = { agents: opts.agents ?? true, apis: opts.apis ?? true, live: (opts.live ?? true) && (opts.agents ?? true) };
     this.rand = mulberry32(seed);
     this.generate();
+  }
+
+  /** One chat conversation with estimated tokens, shaped like an imported export. */
+  private chat(source: 'chatgpt' | 'claude-ai', start: number, daysAgo: number) {
+    const options = CHAT_PROJECTS.filter((p) => p.source === source);
+    const project = this.weighted(options.map((p) => [p, p.share] as [(typeof CHAT_PROJECTS)[number], number]));
+    const id = `demo-${source}-${Math.floor(start / 1000).toString(36)}-${this.int(100, 999)}`;
+    const key = `${source}:${id}`;
+    const meta = newSessionMeta(key, id, source, project.key, start);
+    meta.title = CHAT_TITLES[this.int(0, CHAT_TITLES.length - 1)];
+    meta.titleRank = 3;
+    meta.entrypoint = source === 'chatgpt' ? 'chatgpt' : 'claude.ai';
+    const thinking = this.rand() < 0.3;
+    const model =
+      source === 'claude-ai'
+        ? 'claude-chat'
+        : daysAgo > 120
+          ? thinking
+            ? 'gpt-5-1-thinking'
+            : 'gpt-5-1'
+          : thinking
+            ? 'gpt-5-5-thinking'
+            : 'gpt-5-5';
+    const tools: [string | undefined, number][] =
+      source === 'chatgpt'
+        ? [[undefined, 78], ['web', 10], ['python', 7], ['dalle.text2im', 5]]
+        : [[undefined, 75], ['web_search', 15], ['artifacts', 10]];
+    let ctx = this.int(200, 900); // instructions the user never sees
+    let seen = 0;
+    let t = start;
+    const turns = this.weighted([[1, 25], [2, 20], [3, 15], [5, 15], [8, 15], [14, 10]]);
+    for (let i = 0; i < turns; i++) {
+      const user = this.rand() < 0.08 ? this.int(1_500, 6_000) : this.int(15, 350);
+      ctx += user;
+      meta.promptIds.add(`${key}:${i}`);
+      t += this.r(15_000, 240_000);
+      if (t > this.now) break;
+      const text = Math.round(Math.min(4_000, Math.max(40, Math.exp(this.gauss(6.1, 0.7)))));
+      const reasoning = thinking ? Math.round(text * this.r(0.3, 0.9)) : 0;
+      const tool = this.weighted(tools);
+      this.events.push({
+        key: `demo:${key}:${i}`,
+        ts: t,
+        source,
+        model,
+        projectKey: project.key,
+        sessionKey: key,
+        input: ctx - seen,
+        output: text + reasoning,
+        cacheRead: seen,
+        cacheWrite: 0,
+        cacheWrite1h: 0,
+        reasoning,
+        requests: 1,
+        estimated: true,
+        tools: tool ? [tool] : undefined,
+      });
+      ctx += text + reasoning;
+      seen = ctx;
+    }
+    meta.lastTs = t;
+    meta.lastWrite = t;
+    this.sessions.set(key, meta);
   }
 
   // --- random helpers -------------------------------------------------------
@@ -233,11 +339,11 @@ export class DemoSource {
   }
 
   private projectKey(p: DemoProject) {
-    return `dir:${normalizeFolder(homeJoin(...p.rel.split('/')))}`;
+    return `dir:${normalizeFolder(`/Users/demo/${p.rel}`)}`;
   }
 
   private addProjectHints() {
-    for (const p of PROJECTS) {
+    for (const p of this.opts.agents ? PROJECTS : []) {
       const key = this.projectKey(p);
       const folder = key.slice(4);
       this.projects.set(key, {
@@ -256,7 +362,15 @@ export class DemoSource {
       ['openai-proj:proj_autograder', 'openai-project', 'Auto-grader', 'openai'],
       ['openai-proj:default', 'openai-project', 'Default project', 'openai'],
     ];
-    for (const [key, kind, name, provider] of api) this.projects.set(key, { key, kind, name, provider });
+    if (this.opts.apis) for (const [key, kind, name, provider] of api) this.projects.set(key, { key, kind, name, provider });
+    for (const p of CHAT_PROJECTS) {
+      this.projects.set(p.key, {
+        key: p.key,
+        kind: p.key.endsWith(':chats') ? 'chats' : 'chat-project',
+        name: p.name,
+        provider: p.source === 'chatgpt' ? 'openai' : 'anthropic',
+      });
+    }
   }
 
   /** Generate one agent session and its responses. */
@@ -386,7 +500,7 @@ export class DemoSource {
     scale: number,
     shape: { cacheShare: number; outRatio: number; perRequest: number; batch?: boolean },
   ) {
-    if (scale <= 0) return;
+    if (scale <= 0 || !this.opts.apis) return;
     const promptTokens = Math.round(scale * this.r(0.75, 1.25));
     const cacheRead = Math.round(promptTokens * shape.cacheShare);
     const cacheWrite = source === 'anthropic-api' ? Math.round(promptTokens * 0.04) : 0;
@@ -421,7 +535,7 @@ export class DemoSource {
       const growth = 0.42 + 0.58 * Math.pow(1 - d / 180, 1.3);
       const away = d >= 95 && d <= 101 ? 0.12 : 1; // a quiet conference week
       const lambda = 3.4 * weekday * growth * away;
-      const n = this.poisson(lambda);
+      const n = this.opts.agents ? this.poisson(lambda) : 0;
       for (let i = 0; i < n; i++) {
         const active = PROJECTS.filter((p) => d <= p.from && d >= p.to);
         if (!active.length) continue;
@@ -437,6 +551,24 @@ export class DemoSource {
         if (start > this.now - 2 * HOUR_MS) continue;
         const minutes = Math.min(240, Math.max(5, 6 + Math.exp(this.gauss(3.35, 0.7))));
         this.session(source, p, start, minutes);
+      }
+
+      // Chats in ChatGPT and claude.ai (evenings and weekends too).
+      const chatDay = (dow === 0 || dow === 6 ? 0.7 : 1) * (0.55 + 0.45 * growth) * (away < 1 ? 0.4 : 1);
+      for (const [source, rate] of [
+        ['chatgpt', 4.2],
+        ['claude-ai', 2.6],
+      ] as const) {
+        const n = this.poisson(rate * chatDay);
+        for (let i = 0; i < n; i++) {
+          const hour = this.weighted<number>([
+            [this.gauss(9.5, 1.5), 30],
+            [this.gauss(14, 2), 35],
+            [this.gauss(20.5, 1.5), 35],
+          ]);
+          const start = date.getTime() + Math.min(23.8, Math.max(0, hour)) * HOUR_MS;
+          if (start < this.now - 10 * MINUTE_MS) this.chat(source, start, d);
+        }
       }
 
       // Organisation API usage (daily buckets, UTC days).
@@ -483,23 +615,25 @@ export class DemoSource {
     }
 
     // Sessions happening right now, plus one that just went idle.
-    const byRel = (rel: string) => PROJECTS.find((p) => p.rel === rel)!;
-    this.session('claude-code', byRel('code/agent-visualiser'), this.now - 38 * MINUTE_MS, 60, {
-      title: 'Unified AI usage dashboard',
-      model: 'claude-opus-5-5',
-      until: this.now - 20_000,
-      live: true,
-    });
-    this.session('codex', byRel('research/thesis-nlp'), this.now - 24 * MINUTE_MS, 60, {
-      title: 'Speed up the evaluation harness',
-      model: 'gpt-6.1-sol',
-      until: this.now - 55_000,
-      live: true,
-    });
-    this.session('claude-code', byRel('teaching/ml-course-2026'), this.now - 52 * MINUTE_MS, 43, {
-      title: 'Draft week 6 lab on transformers',
-      model: 'claude-sonnet-5-5',
-    });
+    if (this.opts.live) {
+      const byRel = (rel: string) => PROJECTS.find((p) => p.rel === rel)!;
+      this.session('claude-code', byRel('code/agent-visualiser'), this.now - 38 * MINUTE_MS, 60, {
+        title: 'Unified AI usage dashboard',
+        model: 'claude-opus-5-5',
+        until: this.now - 20_000,
+        live: true,
+      });
+      this.session('codex', byRel('research/thesis-nlp'), this.now - 24 * MINUTE_MS, 60, {
+        title: 'Speed up the evaluation harness',
+        model: 'gpt-6.1-sol',
+        until: this.now - 55_000,
+        live: true,
+      });
+      this.session('claude-code', byRel('teaching/ml-course-2026'), this.now - 52 * MINUTE_MS, 43, {
+        title: 'Draft week 6 lab on transformers',
+        model: 'claude-sonnet-5-5',
+      });
+    }
 
     this.limits = {
       primary: { usedPercent: 37, windowMinutes: 300, resetsAt: this.now + 2 * HOUR_MS + 14 * MINUTE_MS },
@@ -551,43 +685,16 @@ export class DemoSource {
   status(): SourceStatus[] {
     const count = (id: SourceId) => this.events.filter((e) => e.source === id).length;
     const sessionsOf = (id: SourceId) => [...this.sessions.values()].filter((s) => s.source === id).length;
-    return [
-      {
-        id: 'claude-code',
-        label: 'Claude Code',
-        provider: 'anthropic',
-        kind: 'agent',
-        connected: true,
-        summary: `Demo: ${sessionsOf('claude-code')} generated sessions`,
-        events: count('claude-code'),
-      },
-      {
-        id: 'codex',
-        label: 'Codex CLI',
-        provider: 'openai',
-        kind: 'agent',
-        connected: true,
-        summary: `Demo: ${sessionsOf('codex')} generated sessions`,
-        events: count('codex'),
-      },
-      {
-        id: 'anthropic-api',
-        label: 'Anthropic API',
-        provider: 'anthropic',
-        kind: 'api',
-        connected: true,
-        summary: 'Demo: 2 generated workspaces',
-        events: count('anthropic-api'),
-      },
-      {
-        id: 'openai-api',
-        label: 'OpenAI API',
-        provider: 'openai',
-        kind: 'api',
-        connected: true,
-        summary: 'Demo: 3 generated projects',
-        events: count('openai-api'),
-      },
-    ];
+    const ids = SOURCE_IDS.filter(
+      (id) => (this.opts.apis || SOURCE_META[id].kind !== 'api') && (this.opts.agents || SOURCE_META[id].kind !== 'agent'),
+    );
+    return ids.map((id) => {
+      const meta = SOURCE_META[id];
+      const summary =
+        meta.kind === 'api'
+          ? `Demo: ${id === 'anthropic-api' ? '2 generated workspaces' : '3 generated projects'}`
+          : `Demo: ${sessionsOf(id).toLocaleString('en-US')} generated ${meta.kind === 'chat' ? 'conversations' : 'sessions'}`;
+      return { id, label: meta.label, provider: meta.provider, kind: meta.kind, connected: true, summary, events: count(id) };
+    });
   }
 }

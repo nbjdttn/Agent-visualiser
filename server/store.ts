@@ -1,13 +1,17 @@
-import type { Dataset, LiveStatus, SessionDetail, SourceStatus } from '../shared/types.js';
-import { buildDataset, type Built } from './aggregate.js';
+import path from 'node:path';
+import { SOURCE_IDS, type Dataset, type ImportInfo, type LiveStatus, type SessionDetail, type SourceStatus } from '../shared/types.js';
+import { buildDataset, type Built } from '../core/aggregate.js';
+import { DemoSource } from '../core/demo.js';
+import { importedSourceStatus } from '../core/imports.js';
+import { computeLive } from '../core/live.js';
+import type { SourceSnapshot } from '../core/model.js';
+import { Pricing } from '../core/pricing.js';
 import type { Config } from './config.js';
-import { computeLive } from './live.js';
-import type { SourceSnapshot } from './model.js';
-import { Pricing } from './pricing.js';
+import { ImportStore } from './imports.js';
+import { refreshPricing } from './pricing.js';
 import { ApiUsageSource } from './sources/apis.js';
 import { ClaudeCodeSource } from './sources/claudeCode.js';
 import { CodexSource } from './sources/codex.js';
-import { DemoSource } from './sources/demo.js';
 
 /**
  * Owns every data source, re-scans them on demand and keeps the built
@@ -21,6 +25,7 @@ export class Store {
   private readonly claude: ClaudeCodeSource;
   private readonly codex: CodexSource;
   private readonly apis: ApiUsageSource[];
+  private readonly imports: ImportStore;
   private demoSource?: DemoSource;
   private scanPromise?: Promise<void>;
   private lastScan = 0;
@@ -29,6 +34,7 @@ export class Store {
   constructor(private readonly config: Config) {
     this.claude = new ClaudeCodeSource(config.claudeRoots);
     this.codex = new CodexSource(config.codexRoots);
+    this.imports = new ImportStore(path.join(config.cacheDir, 'imports'));
     this.apis = [
       new ApiUsageSource({
         id: 'anthropic-api',
@@ -50,7 +56,7 @@ export class Store {
   /** First load: scan local logs, then fetch prices and API usage in the background. */
   async init(): Promise<void> {
     await this.scan(true);
-    void this.pricing.refresh(this.config.cacheDir, this.config.pricingOffline).then((ok) => ok && this.rebuild());
+    void refreshPricing(this.pricing, this.config.cacheDir, this.config.pricingOffline).then((ok) => ok && this.rebuild());
     void this.refreshApis(true);
   }
 
@@ -61,7 +67,18 @@ export class Store {
   }
 
   private realSnapshots(): SourceSnapshot[] {
-    return [this.claude.snapshot(), this.codex.snapshot(), ...this.apis.map((a) => a.snapshot())];
+    return [this.claude.snapshot(), this.codex.snapshot(), ...this.imports.snapshots(), ...this.apis.map((a) => a.snapshot())];
+  }
+
+  private realStatuses(): SourceStatus[] {
+    const byId = new Map<string, SourceStatus>([
+      ['claude-code', this.claude.status()],
+      ['codex', this.codex.status()],
+      ['claude-ai', importedSourceStatus('claude-ai', this.imports.latest('claude-ai'))],
+      ['chatgpt', importedSourceStatus('chatgpt', this.imports.latest('chatgpt'))],
+      ...this.apis.map((a) => [a.id, a.status()] as [string, SourceStatus]),
+    ]);
+    return SOURCE_IDS.map((id) => byId.get(id)!).filter(Boolean);
   }
 
   /** Re-scan local logs if the scan interval has passed. Concurrent callers share one scan. */
@@ -97,7 +114,7 @@ export class Store {
       statuses = this.demoSource.status();
     } else {
       snapshots = this.realSnapshots();
-      statuses = [this.claude.status(), this.codex.status(), ...this.apis.map((a) => a.status())];
+      statuses = this.realStatuses();
     }
     this.version += 1;
     this.built = buildDataset({ snapshots, pricing: this.pricing, statuses, demo, version: this.version });
@@ -147,6 +164,22 @@ export class Store {
         tools: e.tools ?? [],
       })),
     };
+  }
+
+  listImports(): ImportInfo[] {
+    return this.imports.list();
+  }
+
+  async addImport(fileName: string, bytes: Uint8Array): Promise<ImportInfo[]> {
+    const added = await this.imports.add(fileName, bytes);
+    this.rebuild();
+    return added;
+  }
+
+  removeImport(id: string): boolean {
+    const removed = this.imports.remove(id);
+    if (removed) this.rebuild();
+    return removed;
   }
 
   async refreshAll(): Promise<void> {

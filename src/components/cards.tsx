@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { PROVIDER_LABEL, SOURCE_META, type Provider, type SessionInfo } from '../../shared/types';
+import { PROVIDER_LABEL, SOURCE_META, type ProjectInfo, type Provider, type SessionInfo } from '../../shared/types';
 import { PROVIDER_COLOR } from '../lib/colors';
 import {
   addInto,
@@ -22,6 +22,22 @@ import { CalendarHeatmap, HourHeatmap, ScaleLegend } from './charts/Heatmaps';
 import { TooltipRow } from './charts/Tooltip';
 import { DataTable, type Column } from './DataTable';
 import { Card, CardHeader, Delta, ProviderDot, SourceBadge } from './ui';
+
+/** A short description under a project's name. */
+export function projectSubtitle(p: ProjectInfo): string {
+  switch (p.kind) {
+    case 'folder':
+      return p.path ?? 'Folder';
+    case 'openai-project':
+      return 'OpenAI API project';
+    case 'anthropic-workspace':
+      return 'Anthropic API workspace';
+    case 'chat-project':
+      return p.provider === 'openai' ? 'ChatGPT project or GPT' : 'Claude project';
+    case 'chats':
+      return p.provider === 'openai' ? 'ChatGPT chats outside projects' : 'claude.ai chats outside projects';
+  }
+}
 
 export function ModelsCard({ data, facts, refetching }: { data: Data; facts: Fact[]; refetching?: boolean }) {
   const { filters, setFilters } = useFilters();
@@ -48,7 +64,7 @@ export function ModelsCard({ data, facts, refetching }: { data: Data; facts: Fac
   return (
     <ChartCard
       title="Models"
-      subtitle="Tokens and estimated cost per model · click to filter"
+      subtitle="Tokens and estimated cost per model · select one to filter"
       refetching={refetching}
       table={() => <SimpleTable rows={items.map((i) => [String(i.label), i.display, i.secondary ?? ''])} headers={['Model', 'Tokens', 'Est. cost']} />}
     >
@@ -80,7 +96,7 @@ export function ProjectsCard({ data, facts, refetching }: { data: Data; facts: F
           key: p.key,
           label: p.name,
           title: p.path ?? p.name,
-          sublabel: p.path ?? (p.kind === 'openai-project' ? 'OpenAI project' : 'Anthropic workspace'),
+          sublabel: projectSubtitle(p),
           value: t.tokens,
           display: compact(t.tokens),
           secondary: usd(t.cost),
@@ -136,7 +152,7 @@ export function ToolsCard({ data, sessions, refetching }: { data: Data; sessions
   }, [data, sessions]);
   return (
     <ChartCard
-      title="What the agents did"
+      title="Tools used"
       subtitle="Tool calls in this period"
       refetching={refetching}
       table={() => <SimpleTable rows={items.map((i) => [String(i.label), String(i.sublabel), i.display])} headers={['Tool', 'Agent', 'Calls']} />}
@@ -204,8 +220,8 @@ export function HourCard({ facts, refetching }: { facts: Fact[]; refetching?: bo
   const hour = (h: number) => new Date(2000, 0, 1, h).toLocaleTimeString([], { hour: 'numeric' });
   return (
     <ChartCard
-      title="When your agents work"
-      subtitle={peak.v ? `Busiest: ${days[peak.r]} around ${hour(peak.c)} · local time` : 'Local time, from agent logs'}
+      title="When you use AI"
+      subtitle={peak.v ? `Busiest: ${days[peak.r]} around ${hour(peak.c)} · local time` : 'Local time'}
       refetching={refetching}
       table={() => (
         <SimpleTable
@@ -304,12 +320,13 @@ export function RecentSessionsCard({ data, sessions, refetching }: { data: Data;
             <div className="truncate text-[12px] text-muted">
               {data.projects[s.proj]?.name}
               {s.models[0] !== undefined ? ` · ${data.models[s.models[0]].label}` : ''}
+              <span className="sm:hidden"> · {relative(s.start)}</span>
             </div>
           </div>
         ),
       },
       { ...pick('agent'), sort: undefined },
-      { ...pick('start'), hide: undefined, sort: undefined },
+      { ...pick('start'), hide: 'sm', sort: undefined },
       { ...pick('tokens'), sort: undefined },
       { ...pick('cost'), sort: undefined, hide: 'sm' },
     ];
@@ -317,8 +334,8 @@ export function RecentSessionsCard({ data, sessions, refetching }: { data: Data;
   return (
     <Card className={`flex flex-col p-4 sm:p-5 ${refetching ? 'refetching' : ''}`}>
       <CardHeader
-        title="Recent sessions"
-        subtitle={`${sessions.length.toLocaleString('en-US')} agent sessions in this period`}
+        title="Recent sessions & chats"
+        subtitle={`${sessions.length.toLocaleString('en-US')} in this period`}
         actions={
           <a href="#/sessions" className="text-[12px] font-medium text-ink-2 hover:text-ink">
             All sessions →
@@ -331,7 +348,7 @@ export function RecentSessionsCard({ data, sessions, refetching }: { data: Data;
           rows={sessions.slice(0, 8)}
           rowKey={(s) => s.key}
           onRowClick={(s) => openSession(s.key)}
-          emptyLabel="No agent sessions in this period"
+          emptyLabel="No sessions or chats in this period"
           dense
         />
       </div>

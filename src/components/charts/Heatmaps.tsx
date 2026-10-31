@@ -1,8 +1,9 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { SEQ } from '../../lib/colors';
 import { dayLabel, hourLabel, shortMonth } from '../../lib/format';
 import { DAY_MS, weekStart, weekdayMon } from '../../lib/time';
 import { useWidth } from '../../lib/useSize';
+import { leaveIfMouse, useTapAway } from '../../lib/useTouch';
 import { ChartTooltip, TooltipRow, TooltipTitle } from './Tooltip';
 
 /** Quantile buckets over non-zero values -> level 1..6; 0 means no activity. */
@@ -60,6 +61,8 @@ function MonthGrid({
 }) {
   const [ref, width] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<{ day: number; x: number; y: number } | null>(null);
+  const clearHover = useCallback(() => setHover(null), []);
+  useTapAway(ref, hover !== null, clearHover);
   const first = weekStart(from);
   const gap = 4;
   const top = 20;
@@ -90,7 +93,7 @@ function MonthGrid({
               <g
                 key={c.day}
                 onPointerEnter={() => setHover({ day: c.day, x: x + cellW / 2, y: y + cellH / 2 })}
-                onPointerLeave={() => setHover(null)}
+                onPointerLeave={leaveIfMouse(clearHover)}
                 onClick={() => onSelectDay?.(c.day)}
                 style={{ cursor: onSelectDay ? 'pointer' : 'default' }}
               >
@@ -141,6 +144,8 @@ function YearStrip({
 }) {
   const [ref, width] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<{ day: number; x: number; y: number } | null>(null);
+  const clearHover = useCallback(() => setHover(null), []);
+  useTapAway(ref, hover !== null, clearHover);
   const first = weekStart(from);
   const left = 30;
   const top = 18;
@@ -199,7 +204,7 @@ function YearStrip({
                   cursor: onSelectDay ? 'pointer' : 'default',
                 }}
                 onPointerEnter={() => setHover({ day: c.day, x: x + cell / 2, y: y + cell / 2 })}
-                onPointerLeave={() => setHover(null)}
+                onPointerLeave={leaveIfMouse(clearHover)}
                 onClick={() => onSelectDay?.(c.day)}
               />
             );
@@ -222,6 +227,8 @@ const HOUR_TICKS = [0, 3, 6, 9, 12, 15, 18, 21];
 export function HourHeatmap({ matrix, format }: { matrix: number[][]; format: (v: number) => string }) {
   const [ref, width] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<{ r: number; c: number; x: number; y: number } | null>(null);
+  const clearHover = useCallback(() => setHover(null), []);
+  useTapAway(ref, hover !== null, clearHover);
   const left = 34;
   const gap = 3;
   const cellW = Math.max(6, (width - left) / 24 - gap);
@@ -252,7 +259,7 @@ export function HourHeatmap({ matrix, format }: { matrix: number[][]; format: (v
                   rx={3}
                   style={{ fill: SEQ[level(v)], stroke: isHover ? 'var(--text)' : 'transparent', strokeWidth: 1.5 }}
                   onPointerEnter={() => setHover({ r, c, x: x + cellW / 2, y: y + cellH / 2 })}
-                  onPointerLeave={() => setHover(null)}
+                  onPointerLeave={leaveIfMouse(clearHover)}
                 />
               );
             }),

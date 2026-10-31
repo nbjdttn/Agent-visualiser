@@ -17,8 +17,10 @@ export function slotColor(rank: number): string {
 export const SOURCE_COLOR: Record<SourceId, string> = {
   'claude-code': SLOTS[0],
   codex: SLOTS[1],
-  'anthropic-api': SLOTS[2],
-  'openai-api': SLOTS[3],
+  'claude-ai': SLOTS[2],
+  chatgpt: SLOTS[3],
+  'anthropic-api': SLOTS[4],
+  'openai-api': SLOTS[5],
 };
 
 /** Stacked bottom to top in slot order, so neighbours are always validated pairs. */

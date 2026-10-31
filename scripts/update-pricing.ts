@@ -1,5 +1,5 @@
 /**
- * Refresh the bundled price snapshot (server/pricing-snapshot.json) from
+ * Refresh the bundled price snapshot (core/pricing-snapshot.json) from
  * LiteLLM's public price list. The app also refreshes prices at runtime;
  * this snapshot is only the offline fallback.
  *
@@ -9,10 +9,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { LITELLM_URL, compactLiteLLM } from '../server/pricing.js';
+import { LITELLM_URL, compactLiteLLM } from '../core/pricing.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const out = path.join(here, '..', 'server', 'pricing-snapshot.json');
+const out = path.join(here, '..', 'core', 'pricing-snapshot.json');
 
 async function main() {
   const local = process.argv[2];

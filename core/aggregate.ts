@@ -8,10 +8,10 @@ import {
   type SessionInfo,
   type SourceId,
   type SourceStatus,
-} from '../shared/types.js';
-import type { ProjectHint, RawEvent, SessionMeta, SourceSnapshot } from './model.js';
-import { providerOfModel, type Pricing } from './pricing.js';
-import { displayPath, folderName, localDayIndex, localHour, round6, utcDayIndex } from './util.js';
+} from '../shared/types';
+import type { ProjectHint, RawEvent, SessionMeta, SourceSnapshot } from './model';
+import { chatModelAlias, providerOfModel, type Pricing } from './pricing';
+import { displayPath, folderName, localDayIndex, localHour, round6, utcDayIndex } from './util';
 
 export interface Built {
   dataset: Dataset;
@@ -25,9 +25,19 @@ export interface Built {
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
+const SPECIAL_NAMES: Record<string, string> = {
+  'claude-chat': 'Claude chat',
+  chatgpt: 'ChatGPT',
+  auto: 'ChatGPT auto',
+  'gpt-3.5-turbo': 'GPT-3.5',
+};
+
 /** Human-friendly model names: claude-opus-5-5 -> Opus 5.5, gpt-5.3-codex -> GPT-5.3 Codex. */
 export function prettyModel(id: string): string {
-  const m = id.replace(/-(?:\d{8}|\d{4}-\d{2}-\d{2})$/, '');
+  if (SPECIAL_NAMES[id]) return SPECIAL_NAMES[id];
+  const aliased = chatModelAlias(id);
+  if (SPECIAL_NAMES[aliased]) return SPECIAL_NAMES[aliased];
+  const m = aliased.replace(/-(?:\d{8}|\d{4}-\d{2}-\d{2})$/, '');
   const c = /^claude-(?:(\d+)(?:-(\d+))?-)?(opus|sonnet|haiku|fable|mythos)(?:-(\d+)(?:-(\d+))?)?(.*)$/.exec(m);
   if (c) {
     const version = c[1] ? (c[2] ? `${c[1]}.${c[2]}` : c[1]) : c[4] ? (c[5] ? `${c[4]}.${c[5]}` : c[4]) : '';
@@ -59,8 +69,15 @@ export function buildDataset(args: {
   const events: RawEvent[] = [];
   const sessions = new Map<string, SessionMeta>();
   const hints = new Map<string, ProjectHint>();
+  // The same response can arrive twice (e.g. logs on disk and an import of
+  // the same logs), so events with a key are counted once.
+  const seen = new Set<string>();
   for (const snap of snapshots) {
     for (const e of snap.events) {
+      if (e.key) {
+        if (seen.has(e.key)) continue;
+        seen.add(e.key);
+      }
       e.cost = pricing.cost(e.model, { ...e, aggregated: e.daily });
       events.push(e);
     }
@@ -195,6 +212,7 @@ export function buildDataset(args: {
       s.reasoning += e.reasoning;
       s.requests += e.requests;
       s.cost += e.cost ?? 0;
+      if (e.estimated) s.estimated = true;
       const t = tokensOf(e);
       if (e.sidechain) s.subagentTokens += t;
       const mi = modelIndex.get(e.model)!;

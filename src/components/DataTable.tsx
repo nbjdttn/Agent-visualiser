@@ -68,7 +68,7 @@ export function DataTable<T>({
                     scope="col"
                     style={{ width: c.width }}
                     className={clsx(
-                      'sticky top-0 z-10 whitespace-nowrap border-b border-line bg-surface px-3 py-2 text-[11.5px] font-medium text-muted',
+                      'sticky top-0 z-10 whitespace-nowrap border-b border-line bg-surface px-2 py-2 text-[11.5px] font-medium text-muted sm:px-3',
                       c.align === 'right' ? 'text-right' : 'text-left',
                       c.hide && hideClass[c.hide],
                     )}
@@ -106,7 +106,7 @@ export function DataTable<T>({
                   <td
                     key={c.key}
                     className={clsx(
-                      'border-b border-line px-3 align-middle transition-colors group-last:border-b-0',
+                      'border-b border-line px-2 align-middle transition-colors group-last:border-b-0 sm:px-3',
                       dense ? 'py-1.5' : 'py-2.5',
                       onRowClick && 'group-hover:bg-surface-2',
                       c.align === 'right' ? 'tnum text-right' : 'text-left',

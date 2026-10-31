@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { Dataset, LiveStatus } from '../../shared/types';
+import type { Dataset, ImportInfo, LiveStatus, SessionDetail } from '../../shared/types';
+import type { Built } from '../../core/aggregate';
 import { decode, DEFAULT_FILTERS, resolveRange, type Data, type Filters, type Range } from './data';
 import { todayIndex } from './time';
 
@@ -7,39 +8,100 @@ import { todayIndex } from './time';
 // Dataset + live status
 // ---------------------------------------------------------------------------
 
+/**
+ * server: a local Agent Visualiser server reads agent logs (desktop).
+ * device: no server (the phone app); imports live in this browser.
+ */
+export type Mode = 'server' | 'device';
+
 interface DataState {
+  mode?: Mode;
   data?: Data;
   live?: LiveStatus;
   error?: string;
   loading: boolean;
   refetching: boolean;
   refresh: () => Promise<void>;
+  imports: ImportInfo[];
+  importing?: string;
+  importError?: string;
+  /** What the last successful import added, for a confirmation message. */
+  lastImported?: ImportInfo[];
+  importFile: (file: File) => Promise<ImportInfo[] | undefined>;
+  removeImport: (id: string) => Promise<void>;
+  clearImports: () => Promise<void>;
+  sessionDetail: (key: string) => Promise<SessionDetail | undefined>;
+  renameProject: (key: string, name: string | null) => void;
 }
 
 const DataContext = createContext<DataState | null>(null);
+const API = './api';
+const NAMES_KEY = 'av.projectNames.v1';
 
 async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    let message = `${res.status} ${res.statusText}`;
+    try {
+      const body = (await res.json()) as { error?: string };
+      if (body.error) message = body.error;
+    } catch {
+      // not JSON
+    }
+    throw new Error(message);
+  }
   return (await res.json()) as T;
 }
 
+async function detectMode(): Promise<Mode> {
+  // The desktop server marks the page it serves; a static host (GitHub Pages)
+  // has no API, so don't even ask unless this is a local address (dev server).
+  if (document.querySelector('meta[name="av-server"]')) return 'server';
+  const local = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(location.hostname);
+  if (!local) return 'device';
+  try {
+    const res = await fetch(`${API}/health`, { cache: 'no-store' });
+    return res.ok && (res.headers.get('content-type') ?? '').includes('json') ? 'server' : 'device';
+  } catch {
+    return 'device';
+  }
+}
+
+function loadNames(): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(NAMES_KEY) ?? '{}') as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+const WRITE_HEADERS = { 'x-agent-visualiser': '1' };
+
 export function DataProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<Data>();
+  const [mode, setMode] = useState<Mode>();
+  const [dataset, setDataset] = useState<Dataset>();
   const [live, setLive] = useState<LiveStatus>();
   const [error, setError] = useState<string>();
   const [refetching, setRefetching] = useState(false);
+  const [imports, setImports] = useState<ImportInfo[]>([]);
+  const [importing, setImporting] = useState<string>();
+  const [importError, setImportError] = useState<string>();
+  const [lastImported, setLastImported] = useState<ImportInfo[]>();
+  const [names, setNames] = useState<Record<string, string>>(loadNames);
   const versionRef = useRef<number | undefined>(undefined);
   const loadingRef = useRef(false);
+  const builtRef = useRef<Built | undefined>(undefined);
 
-  const loadDataset = useCallback(async () => {
+  // --- server mode -----------------------------------------------------------
+  const loadServerDataset = useCallback(async () => {
     if (loadingRef.current) return;
     loadingRef.current = true;
     setRefetching(true);
     try {
-      const ds = await getJson<Dataset>('/api/dataset');
+      const [ds, list] = await Promise.all([getJson<Dataset>(`${API}/dataset`), getJson<ImportInfo[]>(`${API}/imports`).catch(() => [])]);
       versionRef.current = ds.version;
-      setData(decode(ds));
+      setDataset(ds);
+      setImports(list);
       setError(undefined);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -51,46 +113,186 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const pollLive = useCallback(async () => {
     try {
-      const l = await getJson<LiveStatus>('/api/live');
+      const l = await getJson<LiveStatus>(`${API}/live`);
       setLive(l);
-      if (versionRef.current !== undefined && l.version !== versionRef.current) void loadDataset();
+      if (versionRef.current !== undefined && l.version !== versionRef.current) void loadServerDataset();
     } catch {
       // the next poll will try again
     }
-  }, [loadDataset]);
+  }, [loadServerDataset]);
+
+  // --- device mode -----------------------------------------------------------
+  const loadDeviceDataset = useCallback(async () => {
+    setRefetching(true);
+    try {
+      const device = await import('./device');
+      const stored = await device.listImports();
+      const version = (versionRef.current ?? 0) + 1;
+      versionRef.current = version;
+      const built = device.buildDeviceDataset(stored, version);
+      builtRef.current = built;
+      setDataset(built.dataset);
+      setImports(stored.map((s) => s.info));
+      setError(undefined);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRefetching(false);
+    }
+  }, []);
 
   useEffect(() => {
-    void loadDataset().then(pollLive);
+    let cancelled = false;
     let timer: number | undefined;
-    const schedule = () => {
-      timer = window.setTimeout(async () => {
-        if (document.visibilityState === 'visible') await pollLive();
-        schedule();
-      }, 8_000);
-    };
-    schedule();
     const onVisible = () => document.visibilityState === 'visible' && void pollLive();
-    document.addEventListener('visibilitychange', onVisible);
+    void detectMode().then(async (m) => {
+      if (cancelled) return;
+      setMode(m);
+      if (m === 'device') {
+        await loadDeviceDataset();
+        return;
+      }
+      await loadServerDataset();
+      await pollLive();
+      const schedule = () => {
+        timer = window.setTimeout(async () => {
+          if (document.visibilityState === 'visible') await pollLive();
+          if (!cancelled) schedule();
+        }, 8_000);
+      };
+      schedule();
+      document.addEventListener('visibilitychange', onVisible);
+    });
     return () => {
+      cancelled = true;
       window.clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [loadDataset, pollLive]);
+  }, [loadServerDataset, loadDeviceDataset, pollLive]);
 
   const refresh = useCallback(async () => {
+    if (mode === 'device') return loadDeviceDataset();
     setRefetching(true);
     try {
-      await getJson('/api/refresh', { method: 'POST', headers: { 'x-agent-visualiser': '1' } });
+      await getJson(`${API}/refresh`, { method: 'POST', headers: WRITE_HEADERS });
     } catch {
       // fall through to a normal reload
     }
-    await loadDataset();
+    await loadServerDataset();
     await pollLive();
-  }, [loadDataset, pollLive]);
+  }, [mode, loadDeviceDataset, loadServerDataset, pollLive]);
+
+  const importFile = useCallback(
+    async (file: File): Promise<ImportInfo[] | undefined> => {
+      setImportError(undefined);
+      setLastImported(undefined);
+      setImporting('Reading the file');
+      try {
+        let added: ImportInfo[];
+        if (mode === 'server') {
+          setImporting('Uploading to your computer');
+          added = await getJson<ImportInfo[]>(`${API}/import`, {
+            method: 'POST',
+            headers: { ...WRITE_HEADERS, 'x-file-name': encodeURIComponent(file.name) },
+            body: file,
+          });
+          await loadServerDataset();
+        } else {
+          const device = await import('./device');
+          const parsed = await device.parseInWorker(file, setImporting);
+          setImporting('Saving on this device');
+          await device.saveImports(parsed);
+          added = parsed.map((p) => p.info);
+          await loadDeviceDataset();
+        }
+        setLastImported(added);
+        return added;
+      } catch (err) {
+        setImportError(err instanceof Error ? err.message : String(err));
+        return undefined;
+      } finally {
+        setImporting(undefined);
+      }
+    },
+    [mode, loadServerDataset, loadDeviceDataset],
+  );
+
+  const removeImport = useCallback(
+    async (id: string) => {
+      if (mode === 'server') {
+        await getJson(`${API}/import/${encodeURIComponent(id)}`, { method: 'DELETE', headers: WRITE_HEADERS }).catch(() => undefined);
+        await loadServerDataset();
+      } else {
+        const device = await import('./device');
+        await device.deleteImport(id);
+        await loadDeviceDataset();
+      }
+    },
+    [mode, loadServerDataset, loadDeviceDataset],
+  );
+
+  const clearImports = useCallback(async () => {
+    if (mode === 'server') {
+      for (const i of imports) await getJson(`${API}/import/${encodeURIComponent(i.id)}`, { method: 'DELETE', headers: WRITE_HEADERS }).catch(() => undefined);
+      await loadServerDataset();
+    } else {
+      const device = await import('./device');
+      await device.deleteAllImports();
+      await loadDeviceDataset();
+    }
+  }, [mode, imports, loadServerDataset, loadDeviceDataset]);
+
+  const sessionDetail = useCallback(
+    async (key: string): Promise<SessionDetail | undefined> => {
+      if (mode === 'device') {
+        const device = await import('./device');
+        return builtRef.current ? device.deviceSessionDetail(builtRef.current, key) : undefined;
+      }
+      try {
+        return await getJson<SessionDetail>(`${API}/session/${encodeURIComponent(key)}`);
+      } catch {
+        return undefined;
+      }
+    },
+    [mode],
+  );
+
+  const renameProject = useCallback((key: string, name: string | null) => {
+    setNames((prev) => {
+      const next = { ...prev };
+      if (name && name.trim()) next[key] = name.trim();
+      else delete next[key];
+      try {
+        localStorage.setItem(NAMES_KEY, JSON.stringify(next));
+      } catch {
+        // storage unavailable: the name lasts until reload
+      }
+      return next;
+    });
+  }, []);
+
+  const data = useMemo(() => (dataset ? decode(dataset, names) : undefined), [dataset, names]);
 
   const value = useMemo<DataState>(
-    () => ({ data, live, error, loading: !data && !error, refetching, refresh }),
-    [data, live, error, refetching, refresh],
+    () => ({
+      mode,
+      data,
+      live,
+      error,
+      loading: !data && !error,
+      refetching,
+      refresh,
+      imports,
+      importing,
+      importError,
+      lastImported,
+      importFile,
+      removeImport,
+      clearImports,
+      sessionDetail,
+      renameProject,
+    }),
+    [mode, data, live, error, refetching, refresh, imports, importing, importError, lastImported, importFile, removeImport, clearImports, sessionDetail, renameProject],
   );
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

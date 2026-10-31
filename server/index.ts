@@ -2,7 +2,7 @@ import { serve } from '@hono/node-server';
 import { createApp } from './app.js';
 import { loadConfig } from './config.js';
 import { Store } from './store.js';
-import { displayPath } from './util.js';
+import { displayPath } from '../core/util.js';
 
 const config = loadConfig();
 const store = new Store(config);

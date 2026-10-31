@@ -1,16 +1,16 @@
-import { ArrowLeft, FolderGit2, GitBranch, Globe } from 'lucide-react';
+import { ArrowLeft, FolderGit2, GitBranch, Globe, MessagesSquare, Pencil } from 'lucide-react';
 import { useMemo } from 'react';
 import { applyFilters, cacheHitRate, delta, filterSessions, previousRange, sum, type Data } from '../lib/data';
 import { compact, full, pct, relative, usd } from '../lib/format';
 import { useData, useDrawer, useFilters } from '../lib/store';
-import { CalendarCard, HourCard, ModelsCard, sessionColumns, ToolsCard } from '../components/cards';
+import { CalendarCard, HourCard, ModelsCard, projectSubtitle, sessionColumns, ToolsCard } from '../components/cards';
 import { DataTable } from '../components/DataTable';
 import { StatTile } from '../components/StatTile';
 import { UsageOverTime } from '../components/UsageOverTime';
 import { Card, CardHeader, EmptyState, Pill, ProviderBadge, SourceBadge } from '../components/ui';
 
 export function ProjectDetailPage({ data, projectKey }: { data: Data; projectKey: string }) {
-  const { refetching } = useData();
+  const { refetching, renameProject } = useData();
   const { filters, range } = useFilters();
   const { openSession } = useDrawer();
   const idx = data.projectByKey.get(projectKey);
@@ -32,7 +32,9 @@ export function ProjectDetailPage({ data, projectKey }: { data: Data; projectKey
   }
 
   const p = data.projects[idx];
-  const isFolder = p.kind === 'folder';
+  // API projects have usage but no sessions; folders and chat projects have both.
+  const isFolder = p.kind !== 'openai-project' && p.kind !== 'anthropic-workspace';
+  const isChat = p.kind === 'chat-project' || p.kind === 'chats';
   const t = sum(facts);
   const prev = sum(prevFacts);
   const sources = [...new Set(allTime.map((f) => f.source))];
@@ -51,13 +53,27 @@ export function ProjectDetailPage({ data, projectKey }: { data: Data; projectKey
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex min-w-0 items-start gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-surface-2 text-ink-2">
-                {p.kind === 'folder' ? <FolderGit2 size={18} /> : <Globe size={18} />}
+                {p.kind === 'folder' ? <FolderGit2 size={18} /> : isChat ? <MessagesSquare size={18} /> : <Globe size={18} />}
               </div>
               <div className="min-w-0">
-                <h2 className="truncate text-[20px] font-semibold tracking-[-0.02em]">{p.name}</h2>
-                <p className="truncate font-mono text-[12px] text-muted">
-                  {p.path ?? (p.kind === 'openai-project' ? 'OpenAI API project' : 'Anthropic API workspace')}
-                </p>
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <h2 className="truncate text-[20px] font-semibold tracking-[-0.02em]">{p.name}</h2>
+                  {isChat && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const name = window.prompt('Name this project (only stored on this device)', p.name);
+                        if (name !== null) renameProject(p.key, name);
+                      }}
+                      className="shrink-0 rounded-lg p-1.5 text-muted hover:bg-surface-2 hover:text-ink"
+                      aria-label="Rename project"
+                      title="Rename"
+                    >
+                      <Pencil size={14} />
+                    </button>
+                  )}
+                </div>
+                <p className={`truncate text-[12px] text-muted ${p.kind === 'folder' ? 'font-mono' : ''}`}>{projectSubtitle(p)}</p>
                 <div className="mt-2.5 flex flex-wrap gap-1.5">
                   {providers.map((pr) => (
                     <ProviderBadge key={pr} provider={pr} />
@@ -86,7 +102,7 @@ export function ProjectDetailPage({ data, projectKey }: { data: Data; projectKey
         <StatTile label="Tokens" value={compact(t.tokens)} delta={delta(t.tokens, prev.tokens)} />
         <StatTile label="Estimated cost" value={usd(t.cost)} delta={delta(t.cost, prev.cost)} />
         {isFolder ? (
-          <StatTile label="Sessions" value={full(sessions.length)} hint={`${activeDays} active days`} />
+          <StatTile label={isChat ? 'Conversations' : 'Sessions'} value={full(sessions.length)} hint={`${activeDays} active days`} />
         ) : (
           <StatTile label="Active days" value={full(activeDays)} hint={`of ${range.days} in this period`} />
         )}
@@ -124,7 +140,10 @@ export function ProjectDetailPage({ data, projectKey }: { data: Data; projectKey
           </div>
 
           <Card className="p-4 sm:p-5">
-            <CardHeader title="Sessions in this project" subtitle={`${sessions.length} sessions in this period`} />
+            <CardHeader
+              title={isChat ? 'Conversations in this project' : 'Sessions in this project'}
+              subtitle={`${sessions.length} in this period`}
+            />
             <div className="-mx-3 mt-3">
               <DataTable
                 columns={cols}

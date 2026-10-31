@@ -1,13 +1,13 @@
 import { Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { PROVIDER_LABEL, SOURCE_META, type Provider, type SourceId } from '../../shared/types';
+import { PROVIDER_LABEL, type Provider, type SourceId } from '../../shared/types';
 import { PROVIDER_COLOR } from '../lib/colors';
 import { applyFilters, filterSessions, groupBy, sparkValues, type Data } from '../lib/data';
 import { compact, relative, usd } from '../lib/format';
 import { href, navigate } from '../lib/router';
 import { useData, useFilters } from '../lib/store';
 import { ChartCard } from '../components/ChartCard';
-import { projectSegments, SimpleTable } from '../components/cards';
+import { projectSegments, projectSubtitle, SimpleTable } from '../components/cards';
 import { SegmentedBar } from '../components/charts/SegmentedBar';
 import { Sparkline } from '../components/charts/Sparkline';
 import { Treemap } from '../components/charts/Treemap';
@@ -103,9 +103,7 @@ export function ProjectsPage({ data }: { data: Data }) {
           <a href={href({ page: 'project', key: r.key })} className="font-medium text-ink hover:underline" onClick={(e) => e.stopPropagation()}>
             {r.name}
           </a>
-          <div className="truncate text-[12px] text-muted">
-            {r.path ?? (r.kind === 'openai-project' ? 'OpenAI API project' : 'Anthropic API workspace')}
-          </div>
+          <div className="truncate text-[12px] text-muted">{projectSubtitle(data.projects[r.idx])}</div>
         </div>
       ),
       sort: (r) => r.name.toLowerCase(),
@@ -182,7 +180,7 @@ export function ProjectsPage({ data }: { data: Data }) {
       <Card className={`p-4 sm:p-5 ${refetching ? 'refetching' : ''}`}>
         <CardHeader
           title="All projects"
-          subtitle="Folders your agents worked in, plus API projects and workspaces"
+          subtitle="Folders your agents worked in, ChatGPT and Claude projects, and API projects"
           actions={
             <label className="relative">
               <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" aria-hidden />
@@ -208,7 +206,7 @@ export function ProjectsPage({ data }: { data: Data }) {
         </div>
         <div className="mt-3 flex flex-wrap gap-2 px-1 text-[12px] text-muted">
           <Pill>Folders come from Claude Code and Codex logs</Pill>
-          <Pill>{SOURCE_META['openai-api'].label} projects and {SOURCE_META['anthropic-api'].label} workspaces come from admin keys</Pill>
+          <Pill>ChatGPT projects, custom GPTs and Claude projects come from your chat exports</Pill>
         </div>
       </Card>
     </div>

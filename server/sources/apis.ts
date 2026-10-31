@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import type { SourceId, SourceStatus } from '../../shared/types.js';
-import type { ProjectHint, RawEvent, SourceSnapshot } from '../model.js';
-import { DAY_MS, num, str } from '../util.js';
+import type { ProjectHint, RawEvent, SourceSnapshot } from '../../core/model.js';
+import { DAY_MS, num, str } from '../../core/util.js';
 
 /**
  * Organisation usage from the providers' admin APIs, fetched as daily

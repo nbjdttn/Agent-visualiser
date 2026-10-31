@@ -1,8 +1,9 @@
 import { scaleBand, scaleLinear } from 'd3-scale';
 import { area as d3area, curveMonotoneX, line as d3line } from 'd3-shape';
-import { useMemo, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { useCallback, useMemo, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import type { Bucket, SeriesDef } from '../../lib/data';
 import { useWidth } from '../../lib/useSize';
+import { leaveIfMouse, useTapAway } from '../../lib/useTouch';
 import { ChartTooltip, TooltipRow, TooltipTitle } from './Tooltip';
 
 interface Props {
@@ -29,6 +30,8 @@ export function TimeSeriesChart({ buckets, series, kind, height = 260, format, a
   const [ref, width] = useWidth<HTMLDivElement>();
   const [active, setActive] = useState<number | null>(null);
   const [pointerY, setPointerY] = useState(0);
+  const clearActive = useCallback(() => setActive(null), []);
+  useTapAway(ref, active !== null, clearActive);
 
   const visible = useMemo(() => series.map((s) => !hidden?.has(s.key)), [series, hidden]);
   const totals = useMemo(
@@ -118,7 +121,7 @@ export function TimeSeriesChart({ buckets, series, kind, height = 260, format, a
   const empty = max === 0;
 
   return (
-    <div ref={ref} className="relative w-full select-none" style={{ height }}>
+    <div ref={ref} className="relative w-full select-none" style={{ height, touchAction: 'pan-y' }}>
       {width > 0 && (
         <svg width={width} height={height} role="img" aria-label="Usage over time chart" className="block overflow-visible">
           <g transform={`translate(${M.left},${M.top})`}>
@@ -239,7 +242,8 @@ export function TimeSeriesChart({ buckets, series, kind, height = 260, format, a
               role="application"
               aria-label="Chart. Use left and right arrow keys to read values."
               onPointerMove={onMove}
-              onPointerLeave={() => setActive(null)}
+              onPointerDown={onMove}
+              onPointerLeave={leaveIfMouse(clearActive)}
               onKeyDown={onKey}
               onBlur={() => setActive(null)}
               style={{ outline: 'none', cursor: 'crosshair' }}

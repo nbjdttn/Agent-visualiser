@@ -1,9 +1,10 @@
 import { hierarchy, treemap, treemapSquarify, type HierarchyRectangularNode } from 'd3-hierarchy';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { PROVIDER_LABEL, type Provider } from '../../../shared/types';
 import { PROVIDER_COLOR } from '../../lib/colors';
 import { pct } from '../../lib/format';
 import { useWidth } from '../../lib/useSize';
+import { leaveIfMouse, useTapAway } from '../../lib/useTouch';
 import { ChartTooltip, TooltipRow, TooltipTitle } from './Tooltip';
 
 export interface TreemapProject {
@@ -40,6 +41,8 @@ export function Treemap({
 }) {
   const [ref, width] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<{ leaf: HierarchyRectangularNode<Node>; x: number; y: number } | null>(null);
+  const clearHover = useCallback(() => setHover(null), []);
+  useTapAway(ref, hover !== null, clearHover);
 
   const root = useMemo(() => {
     if (!width) return undefined;
@@ -88,7 +91,7 @@ export function Treemap({
                     <g
                       key={leaf.data.provider}
                       onPointerEnter={() => setHover({ leaf, x: leaf.x0 + w / 2, y: leaf.y0 + Math.min(h / 2, 40) })}
-                      onPointerLeave={() => setHover(null)}
+                      onPointerLeave={leaveIfMouse(clearHover)}
                     >
                       <rect
                         x={leaf.x0}
@@ -112,7 +115,7 @@ export function Treemap({
                     </text>
                     {bh > 52 && (
                       <text x={biggest.x0 + 12} y={biggest.y0 + 37} className="tnum" style={{ fill: 'var(--text-2)', fontSize: 11.5 }}>
-                        {format(g.value ?? 0)} · {pct((g.value ?? 0) / (total || 1))}
+                        {fitLine([`${format(g.value ?? 0)} · ${pct((g.value ?? 0) / (total || 1))}`, format(g.value ?? 0)], bw - 20)}
                       </text>
                     )}
                   </g>
@@ -141,6 +144,11 @@ export function Treemap({
       )}
     </div>
   );
+}
+
+/** The longest candidate that fits the width (about 6.6px per character), or nothing. */
+function fitLine(candidates: string[], width: number): string {
+  return candidates.find((c) => c.length * 6.6 <= width) ?? '';
 }
 
 function truncate(s: string, n: number) {

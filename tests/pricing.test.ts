@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compactLiteLLM, Pricing, providerOfModel } from '../server/pricing';
+import { compactLiteLLM, Pricing, providerOfModel } from '../core/pricing';
 
 const pricing = new Pricing();
 const close = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThan(1e-9);

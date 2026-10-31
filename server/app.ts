@@ -48,10 +48,30 @@ export function createApp(store: Store, opts: { staticDir?: string; allowedHosts
     return c.json({ ok: true, version: store.version });
   });
 
+  app.get('/api/imports', (c) => c.json(store.listImports()));
+  app.post('/api/import', async (c) => {
+    const fileName = decodeURIComponent(c.req.header('x-file-name') ?? 'upload');
+    const bytes = new Uint8Array(await c.req.arrayBuffer());
+    if (!bytes.length) return c.json({ error: 'The file was empty.' }, 400);
+    try {
+      return c.json(await store.addImport(fileName, bytes));
+    } catch (err) {
+      return c.json({ error: err instanceof Error ? err.message : String(err) }, 422);
+    }
+  });
+  app.delete('/api/import/:id', (c) =>
+    store.removeImport(c.req.param('id')) ? c.json({ ok: true }) : c.json({ error: 'Import not found' }, 404),
+  );
+
   const staticDir = opts.staticDir;
   if (staticDir && fs.existsSync(path.join(staticDir, 'index.html'))) {
     const root = path.relative(process.cwd(), staticDir) || '.';
-    const indexHtml = fs.readFileSync(path.join(staticDir, 'index.html'), 'utf8');
+    // Mark the page as served by this server, so the app reads live data from the API.
+    const indexHtml = fs
+      .readFileSync(path.join(staticDir, 'index.html'), 'utf8')
+      .replace('<head>', '<head>\n    <meta name="av-server" content="1" />');
+    app.get('/', (c) => c.html(indexHtml));
+    app.get('/index.html', (c) => c.html(indexHtml));
     app.use('/*', serveStatic({ root }));
     app.get('*', (c) => (c.req.path.startsWith('/api/') ? c.json({ error: 'Not found' }, 404) : c.html(indexHtml)));
   } else {

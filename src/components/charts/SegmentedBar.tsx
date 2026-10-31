@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { inkOn } from '../../lib/colors';
 import { pct } from '../../lib/format';
 import { useWidth } from '../../lib/useSize';
+import { leaveIfMouse, useTapAway } from '../../lib/useTouch';
 import { ChartTooltip, TooltipRow } from './Tooltip';
 
 export interface Part {
@@ -29,6 +30,8 @@ export function SegmentedBar({
 }) {
   const [ref, width] = useWidth<HTMLDivElement>();
   const [hover, setHover] = useState<{ i: number; x: number } | null>(null);
+  const clearHover = useCallback(() => setHover(null), []);
+  useTapAway(ref, hover !== null, clearHover);
   const total = parts.reduce((s, p) => s + p.value, 0);
   const visible = parts.filter((p) => p.value > 0);
   const gap = 2;
@@ -63,7 +66,7 @@ export function SegmentedBar({
                 opacity: hover && hover.i !== i ? 0.75 : 1,
               }}
               onPointerEnter={() => setHover({ i, x: b.x + b.w / 2 })}
-              onPointerLeave={() => setHover(null)}
+              onPointerLeave={leaveIfMouse(clearHover)}
             >
               {fits && (
                 <span className="tnum pl-2 text-[12px] font-semibold" style={{ color: inkOn(b.color) }}>

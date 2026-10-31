@@ -60,7 +60,7 @@ export function OverviewPage({ data }: { data: Data }) {
             <p className="mt-2 text-[13px] text-ink-2">
               <span className="font-semibold text-ink">{usd(t.cost)}</span> estimated ·{' '}
               <span className="font-semibold text-ink">{full(t.requests)}</span> requests ·{' '}
-              <span className="font-semibold text-ink">{full(sessions.length)}</span> agent sessions
+              <span className="font-semibold text-ink">{full(sessions.length)}</span> sessions & chats
             </p>
           </div>
           <div>
@@ -94,7 +94,7 @@ export function OverviewPage({ data }: { data: Data }) {
           <StatTile label="Total tokens" value={compact(t.tokens)} delta={delta(t.tokens, p.tokens)} spark={sparkTokens} hint={`${compact(t.tokens / Math.max(1, range.days))} per day`} />
           <StatTile label="Requests" value={compact(t.requests)} delta={delta(t.requests, p.requests)} spark={sparkReq} hint="model responses" />
           <StatTile
-            label="Agent sessions"
+            label="Sessions & chats"
             value={full(sessions.length)}
             delta={delta(sessions.length, prevSessions.length)}
             hint={sessions.length ? `${compact(sessions.reduce((s, x) => s + x.input + x.output + x.cacheRead + x.cacheWrite, 0) / sessions.length)} tokens each` : 'none yet'}

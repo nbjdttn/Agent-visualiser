@@ -33,6 +33,7 @@ export function SessionDrawer() {
 
 function SessionBody({ data, sessionKey, onClose }: { data: Data; sessionKey: string; onClose: () => void }) {
   const s = data.sessionByKey.get(sessionKey);
+  const { sessionDetail } = useData();
   const [detail, setDetail] = useState<SessionDetail>();
   const [error, setError] = useState<string>();
   const [hidden, setHidden] = useState<Set<string>>(new Set());
@@ -40,14 +41,18 @@ function SessionBody({ data, sessionKey, onClose }: { data: Data; sessionKey: st
   useEffect(() => {
     let cancelled = false;
     setDetail(undefined);
-    fetch(`/api/session/${encodeURIComponent(sessionKey)}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((d: SessionDetail) => !cancelled && setDetail(d))
+    setError(undefined);
+    sessionDetail(sessionKey)
+      .then((d) => {
+        if (cancelled) return;
+        if (d) setDetail(d);
+        else setError('not found');
+      })
       .catch((e) => !cancelled && setError(String(e)));
     return () => {
       cancelled = true;
     };
-  }, [sessionKey]);
+  }, [sessionKey, sessionDetail]);
 
   const chart = useMemo(() => {
     if (!detail) return undefined;
@@ -131,7 +136,7 @@ function SessionBody({ data, sessionKey, onClose }: { data: Data; sessionKey: st
       <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Stat label="Tokens" value={compact(tokens)} />
         <Stat label="Est. cost" value={usd(s.cost)} />
-        <Stat label="Requests" value={full(s.requests)} />
+        <Stat label={s.estimated ? 'Replies' : 'Requests'} value={full(s.requests)} />
         <Stat label="Cache hit" value={pct(cacheHitRate(totals))} />
       </div>
 
@@ -145,8 +150,8 @@ function SessionBody({ data, sessionKey, onClose }: { data: Data; sessionKey: st
 
       <section className="mt-6">
         <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-[14px] font-semibold">Tokens per request</h3>
-          <span className="text-[12px] text-muted">{detail ? `${detail.events.length} requests` : ''}</span>
+          <h3 className="text-[14px] font-semibold">{s.estimated ? 'Tokens per reply (estimated)' : 'Tokens per request'}</h3>
+          <span className="text-[12px] text-muted">{detail ? `${detail.events.length} ${s.estimated ? 'replies' : 'requests'}` : ''}</span>
         </div>
         {chart && <Legend series={chart.series} hidden={hidden} onChange={setHidden} />}
         <div className="card mt-3 p-3">
@@ -164,13 +169,14 @@ function SessionBody({ data, sessionKey, onClose }: { data: Data; sessionKey: st
           )}
         </div>
         <p className="mt-2 text-[12px] text-muted">
-          Each bar is one model response. Cache reads grow as the conversation gets longer; a drop usually means the context
-          was compacted.
+          {s.estimated
+            ? 'Each bar is one reply. Chat exports have no token counts, so these are estimated from message length: each reply re-reads the conversation so far.'
+            : 'Each bar is one model response. Cache reads grow as the conversation gets longer; a drop usually means the context was compacted.'}
         </p>
       </section>
 
       <section className="mt-6">
-        <h3 className="mb-2 text-[14px] font-semibold">Tools the agent used</h3>
+        <h3 className="mb-2 text-[14px] font-semibold">Tools used</h3>
         <div className="card p-2">
           <BarList items={tools} emptyLabel="No tool calls recorded" limit={10} />
         </div>

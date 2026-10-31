@@ -1,8 +1,8 @@
-import type { CodexLimits, ProjectKind, Provider, SourceId } from '../shared/types.js';
+import type { CodexLimits, ProjectKind, Provider, SourceId } from '../shared/types';
 
 /**
  * One unit of usage before aggregation: a single model response for agent
- * logs, or a daily bucket for organisation APIs.
+ * logs and chat exports, or a daily bucket for organisation APIs.
  */
 export interface RawEvent {
   /** Dedupe key; the same response can appear in several log files. Empty = no dedupe. */
@@ -28,6 +28,8 @@ export interface RawEvent {
   sidechain?: boolean;
   /** True for API buckets that cover a whole UTC day. */
   daily?: boolean;
+  /** True when token counts were estimated from text rather than reported. */
+  estimated?: boolean;
   tools?: string[];
   cost?: number;
 }
@@ -95,4 +97,46 @@ export function mergeSession(into: SessionMeta, from: SessionMeta) {
 
 export function cloneSession(s: SessionMeta): SessionMeta {
   return { ...s, promptIds: new Set(s.promptIds) };
+}
+
+// ---------------------------------------------------------------------------
+// Plain-JSON form of a snapshot, for saving imports to disk or IndexedDB.
+// ---------------------------------------------------------------------------
+
+export interface StoredSession extends Omit<SessionMeta, 'promptIds'> {
+  prompts: number;
+}
+
+export interface StoredProject extends Omit<ProjectHint, 'branches'> {
+  branches?: string[];
+}
+
+export interface StoredSnapshot {
+  events: RawEvent[];
+  sessions: StoredSession[];
+  projects: StoredProject[];
+  codexLimits?: CodexLimits;
+}
+
+export function serializeSnapshot(s: SourceSnapshot): StoredSnapshot {
+  return {
+    events: s.events.map(({ cost: _cost, ...e }) => e),
+    sessions: [...s.sessions.values()].map(({ promptIds, ...rest }) => ({ ...rest, prompts: promptIds.size })),
+    projects: [...s.projects.values()].map(({ branches, ...rest }) => ({ ...rest, branches: branches ? [...branches] : undefined })),
+    codexLimits: s.codexLimits,
+  };
+}
+
+export function deserializeSnapshot(s: StoredSnapshot): SourceSnapshot {
+  return {
+    events: s.events.map((e) => ({ ...e })),
+    sessions: new Map(
+      s.sessions.map(({ prompts, ...rest }) => [
+        rest.key,
+        { ...rest, promptIds: new Set(Array.from({ length: prompts }, (_, i) => String(i))) },
+      ]),
+    ),
+    projects: new Map(s.projects.map(({ branches, ...rest }) => [rest.key, { ...rest, branches: branches ? new Set(branches) : undefined }])),
+    codexLimits: s.codexLimits,
+  };
 }

@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.1.5",
+    "fflate": "^0.8.3",
     "fzstd": "^0.1.1",
     "hono": "^4.13.14",
     "tsx": "^4.23.15"

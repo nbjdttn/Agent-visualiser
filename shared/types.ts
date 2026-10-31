@@ -5,15 +5,17 @@
 
 export type Provider = 'anthropic' | 'openai';
 
-export type SourceId = 'claude-code' | 'codex' | 'anthropic-api' | 'openai-api';
+export type SourceId = 'claude-code' | 'codex' | 'claude-ai' | 'chatgpt' | 'anthropic-api' | 'openai-api';
 
-export const SOURCE_IDS: SourceId[] = ['claude-code', 'codex', 'anthropic-api', 'openai-api'];
+export const SOURCE_IDS: SourceId[] = ['claude-code', 'codex', 'claude-ai', 'chatgpt', 'anthropic-api', 'openai-api'];
+
+export type SourceKind = 'agent' | 'chat' | 'api';
 
 export interface SourceMeta {
   label: string;
   short: string;
   provider: Provider;
-  kind: 'agent' | 'api';
+  kind: SourceKind;
   description: string;
 }
 
@@ -31,6 +33,20 @@ export const SOURCE_META: Record<SourceId, SourceMeta> = {
     provider: 'openai',
     kind: 'agent',
     description: 'Local session logs written by the OpenAI Codex CLI and IDE extension.',
+  },
+  'claude-ai': {
+    label: 'claude.ai chats',
+    short: 'claude.ai',
+    provider: 'anthropic',
+    kind: 'chat',
+    description: 'Your Claude chat history, from the data export in claude.ai settings. Tokens are estimated.',
+  },
+  chatgpt: {
+    label: 'ChatGPT chats',
+    short: 'ChatGPT',
+    provider: 'openai',
+    kind: 'chat',
+    description: 'Your ChatGPT chat history, from the data export in ChatGPT settings. Tokens are estimated.',
   },
   'anthropic-api': {
     label: 'Anthropic API',
@@ -90,7 +106,12 @@ export interface ModelInfo {
   price?: { input: number; output: number; cacheRead?: number; cacheWrite?: number };
 }
 
-export type ProjectKind = 'folder' | 'openai-project' | 'anthropic-workspace';
+/**
+ * folder: where an agent ran; openai-project / anthropic-workspace: API
+ * groupings; chat-project: a ChatGPT project, custom GPT or Claude project;
+ * chats: everything else in a chat export.
+ */
+export type ProjectKind = 'folder' | 'openai-project' | 'anthropic-workspace' | 'chat-project' | 'chats';
 
 export interface ProjectInfo {
   key: string;
@@ -124,6 +145,8 @@ export interface SessionInfo {
   tools: [string, number][];
   /** Tokens spent by sub-agents (Claude Code Task tool, Codex spawned agents). */
   subagentTokens: number;
+  /** Token counts were estimated from text (chat exports), not reported by the API. */
+  estimated?: boolean;
   prompts: number;
   branch?: string;
   entrypoint?: string;
@@ -134,7 +157,7 @@ export interface SourceStatus {
   id: SourceId;
   label: string;
   provider: Provider;
-  kind: 'agent' | 'api';
+  kind: SourceKind;
   /** Found data or a key for this source. */
   connected: boolean;
   /** Short human summary, e.g. "214 sessions in 1,204 files". */
@@ -146,6 +169,19 @@ export interface SourceStatus {
   updatedAt?: number;
   error?: string;
   hint?: string;
+}
+
+/** One imported file (a chat export or a batch of agent logs). */
+export interface ImportInfo {
+  id: string;
+  source: SourceId;
+  fileName: string;
+  importedAt: number;
+  conversations: number;
+  replies: number;
+  tokens: number;
+  from?: number;
+  to?: number;
 }
 
 export interface PricingStatus {

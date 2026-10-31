@@ -20,9 +20,9 @@ const TITLES: Record<Route['page'], string> = {
   live: 'Live',
   projects: 'Projects',
   project: 'Project',
-  sessions: 'Sessions',
+  sessions: 'Sessions & chats',
   models: 'Models',
-  sources: 'Data sources',
+  sources: 'Your data',
 };
 
 function Loading() {
@@ -43,7 +43,7 @@ function Loading() {
 
 function Pages() {
   const route = useRoute();
-  const { data, error } = useData();
+  const { data, error, mode } = useData();
   const { range } = useFilters();
 
   const withFilters = route.page !== 'live' && route.page !== 'sources';
@@ -51,16 +51,32 @@ function Pages() {
     route.page === 'live'
       ? 'Agents working right now, plan windows and limits'
       : route.page === 'sources'
-        ? 'Where the numbers come from'
+        ? 'Import your history'
         : rangeLabel(range.from, range.to);
 
   let body: ReactNode;
   if (error && !data) {
     body = (
       <Card>
-        <EmptyState title="Can't reach the Agent Visualiser server" icon={<AlertTriangle size={22} />}>
-          Start it with <code className="font-mono">npm run dev</code> (or <code className="font-mono">npm start</code> after a build)
-          and reload. ({error})
+        {mode === 'device' ? (
+          <EmptyState title="Couldn't open your data on this device" icon={<AlertTriangle size={22} />}>
+            The browser refused access to its storage (private browsing can do this). Try again in a normal Safari tab or
+            from the Home Screen app. ({error})
+          </EmptyState>
+        ) : (
+          <EmptyState title="Can't reach the Agent Visualiser server" icon={<AlertTriangle size={22} />}>
+            Start it with <code className="font-mono">npm run dev</code> (or <code className="font-mono">npm start</code> after a
+            build) and reload. ({error})
+          </EmptyState>
+        )}
+      </Card>
+    );
+  } else if (route.page === 'live' && mode === 'device') {
+    body = (
+      <Card>
+        <EmptyState title="Live view needs a computer" icon={<AlertTriangle size={22} />}>
+          Live agent activity comes from Claude Code and Codex running on a computer with the desktop version of this app. On
+          your phone, import your history from the Data tab instead.
         </EmptyState>
       </Card>
     );

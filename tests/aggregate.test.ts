@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildDataset, prettyModel } from '../server/aggregate';
-import { computeBlocks } from '../server/live';
-import { newSessionMeta, type RawEvent, type SourceSnapshot } from '../server/model';
-import { Pricing } from '../server/pricing';
-import { DemoSource } from '../server/sources/demo';
-import { localDayIndex, localHour } from '../server/util';
+import { buildDataset, prettyModel } from '../core/aggregate';
+import { computeBlocks } from '../core/live';
+import { newSessionMeta, type RawEvent, type SourceSnapshot } from '../core/model';
+import { Pricing } from '../core/pricing';
+import { DemoSource } from '../core/demo';
+import { localDayIndex, localHour } from '../core/util';
 
 const ev = (over: Partial<RawEvent>): RawEvent => ({
   key: '',

@@ -7,10 +7,10 @@ import type {
   Provider,
   SourceId,
   UsageBlock,
-} from '../shared/types.js';
-import { prettyModel, tokensOf, type Built } from './aggregate.js';
-import type { RawEvent } from './model.js';
-import { HOUR_MS, MINUTE_MS, localDayIndex, utcDayIndex } from './util.js';
+} from '../shared/types';
+import { prettyModel, tokensOf, type Built } from './aggregate';
+import type { RawEvent } from './model';
+import { HOUR_MS, MINUTE_MS, localDayIndex, utcDayIndex } from './util';
 
 const WORKING_MS = 3 * MINUTE_MS;
 const IDLE_MS = 20 * MINUTE_MS;
