@@ -814,20 +814,17 @@ body {
   animation: pulse-ring 1.8s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
 }
 
-/* The Mac card: the mode you're in glows green; cores kept free for you glow too. */
+/* The Mac card: what the Mac is doing glows green; so does the band of cores kept free for you. */
 .mode-glow {
   box-shadow:
     0 0 0 1.5px color-mix(in srgb, var(--good) 75%, transparent),
     0 0 16px color-mix(in srgb, var(--good) 40%, transparent);
 }
 
-.core-free {
-  background: color-mix(in srgb, var(--good) 22%, transparent);
-  box-shadow:
-    inset 0 0 0 1.5px color-mix(in srgb, var(--good) 75%, transparent),
-    0 0 8px color-mix(in srgb, var(--good) 35%, transparent);
+.gauge-band {
+  stroke: var(--good);
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--good) 70%, transparent));
 }
-
 @keyframes spin {
   to {
     transform: rotate(360deg);

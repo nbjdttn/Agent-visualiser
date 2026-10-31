@@ -142,10 +142,20 @@ export function MacCard() {
       </div>
 
       {state && !stale && (state.cpu || state.gpu !== undefined || state.mem) ? (
-        <div className="mt-3.5 flex flex-col gap-2.5">
-          {state.cpu ? <CpuRow cpu={state.cpu} gentle={live === 'gentle'} /> : null}
-          {state.gpu !== undefined ? <BarRow label="GPU" value={`${Math.round(state.gpu)}%`} fraction={state.gpu / 100} color="var(--s3)" /> : null}
-          {state.mem ? <MemRow mem={state.mem} /> : null}
+        <div className="mt-3 grid grid-cols-3 gap-1">
+          {state.cpu ? <CpuGauge cpu={state.cpu} gentle={live === 'gentle'} /> : <span />}
+          {state.gpu !== undefined ? (
+            <Gauge
+              label="GPU"
+              value={`${Math.round(state.gpu)}%`}
+              parts={[{ from: 0, to: state.gpu / 100, color: 'var(--s3)' }]}
+              needle={state.gpu / 100}
+              title={`GPU ${Math.round(state.gpu)}% busy`}
+            />
+          ) : (
+            <span />
+          )}
+          {state.mem ? <MemGauge mem={state.mem} /> : <span />}
         </div>
       ) : null}
 
@@ -181,64 +191,129 @@ export function MacCard() {
   );
 }
 
-/** A label, a bar and a value on one line. */
-function Row({ label, value, children }: { label: string; value: string; children: React.ReactNode }) {
+/** Dials sweep 240°, with the gap at the bottom like a car's speedometer. */
+const START = 150;
+const SWEEP = 240;
+const clamp01 = (x: number) => Math.max(0, Math.min(1, Number.isFinite(x) ? x : 0));
+
+function polar(cx: number, cy: number, r: number, deg: number): [number, number] {
+  const a = (deg * Math.PI) / 180;
+  return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+}
+
+function arc(cx: number, cy: number, r: number, from: number, to: number): string {
+  const [x0, y0] = polar(cx, cy, r, from);
+  const [x1, y1] = polar(cx, cy, r, to);
+  return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 ${to - from > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+}
+
+/**
+ * A speedometer-style dial: coloured arc parts on a track, a needle that
+ * swings to the value, the number in the gap below the hub, and optionally a
+ * thin glowing green band outside the arc (the cores kept free for you).
+ */
+function Gauge({
+  label,
+  value,
+  sub,
+  parts,
+  needle,
+  band,
+  title,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  parts: { from: number; to: number; color: string }[];
+  needle: number;
+  band?: { from: number; to: number };
+  title: string;
+}) {
+  const W = 100;
+  const H = 88;
+  const r = 37;
+  const sw = 8;
+  const cx = W / 2;
+  const cy = 50;
+  const track = arc(cx, cy, r, START, START + SWEEP);
   return (
-    <div className="flex items-center gap-3">
-      <span className="w-10 shrink-0 text-[12.5px] font-semibold text-muted">{label}</span>
-      <div className="min-w-0 flex-1">{children}</div>
-      <span className="tnum w-[76px] shrink-0 text-right text-[13px] font-medium text-ink-2">{value}</span>
+    <div className="flex flex-col items-center" role="img" aria-label={title} title={title}>
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="overflow-visible" aria-hidden>
+        <path d={track} fill="none" style={{ stroke: 'var(--surface-2)' }} strokeWidth={sw} strokeLinecap="round" />
+        {parts
+          .filter((p) => clamp01(p.to) - clamp01(p.from) > 0.004)
+          .map((p, i) => (
+            <path
+              key={i}
+              d={track}
+              pathLength={100}
+              fill="none"
+              style={{ stroke: p.color, transition: 'stroke-dasharray 700ms ease, stroke-dashoffset 700ms ease' }}
+              strokeWidth={sw}
+              strokeLinecap="round"
+              strokeDasharray={`${((clamp01(p.to) - clamp01(p.from)) * 100).toFixed(2)} 200`}
+              strokeDashoffset={(-clamp01(p.from) * 100).toFixed(2)}
+            />
+          ))}
+        {band && band.to - band.from > 0.004 ? (
+          <path
+            d={arc(cx, cy, r + sw / 2 + 4.5, START + SWEEP * clamp01(band.from), START + SWEEP * clamp01(band.to))}
+            fill="none"
+            className="gauge-band"
+            strokeWidth={3.5}
+            strokeLinecap="round"
+          />
+        ) : null}
+        <g style={{ transform: `rotate(${START + SWEEP * clamp01(needle)}deg)`, transformOrigin: `${cx}px ${cy}px`, transition: 'transform 800ms cubic-bezier(0.2, 0.7, 0.2, 1)' }}>
+          <line x1={cx - 5} y1={cy} x2={cx + r - sw / 2 - 5} y2={cy} style={{ stroke: 'var(--text)' }} strokeWidth={2.5} strokeLinecap="round" />
+        </g>
+        <circle cx={cx} cy={cy} r={5} style={{ fill: 'var(--text)' }} />
+        <circle cx={cx} cy={cy} r={2} style={{ fill: 'var(--surface)' }} />
+        <text x={cx} y={cy + 32} textAnchor="middle" className="tnum" style={{ fill: 'var(--text)', fontSize: 15.5, fontWeight: 700 }}>
+          {value}
+          {sub ? <tspan style={{ fill: 'var(--muted)', fontSize: 11.5, fontWeight: 600 }}>{sub}</tspan> : null}
+        </text>
+      </svg>
+      <span className="-mt-0.5 text-[12.5px] font-semibold text-muted">{label}</span>
     </div>
   );
 }
 
-function BarRow({ label, value, fraction, color }: { label: string; value: string; fraction: number; color: string }) {
+/** CPU: agents in blue, everything else in grey, the needle at the total; the cores kept free for you glow green. */
+function CpuGauge({ cpu, gentle }: { cpu: CpuInfo; gentle: boolean }) {
+  const cores = Math.max(1, cpu.cores);
+  const busy = Math.max(cpu.busy ?? cpu.agents, cpu.agents);
+  const free = gentle ? Math.max(0, Math.min(cores, cpu.free)) : 0;
   return (
-    <Row label={label} value={value}>
-      <div className="h-3 overflow-hidden rounded-full bg-surface-2">
-        <div className="h-full rounded-full transition-[width] duration-700" style={{ width: `${Math.max(2, Math.min(100, fraction * 100))}%`, background: color }} />
-      </div>
-    </Row>
+    <Gauge
+      label="CPU"
+      value={busy.toFixed(1)}
+      sub={`/${cores}`}
+      parts={[
+        { from: 0, to: cpu.agents / cores, color: 'var(--s1)' },
+        { from: cpu.agents / cores, to: busy / cores, color: 'var(--border-strong)' },
+      ]}
+      needle={busy / cores}
+      band={free ? { from: 1 - free / cores, to: 1 } : undefined}
+      title={`CPU: ${busy.toFixed(1)} of ${cores} cores busy, agents ${cpu.agents.toFixed(1)}${free ? `; ${free} kept free for you` : ''}`}
+    />
   );
 }
 
-/** One block per core: blue for the agents, grey for everything else, glowing green for the ones kept free for you. */
-function CpuRow({ cpu, gentle }: { cpu: CpuInfo; gentle: boolean }) {
-  const cores = Math.max(1, Math.min(64, Math.round(cpu.cores)));
-  const free = gentle ? Math.max(0, Math.min(cores, Math.round(cpu.free))) : 0;
-  const agents = Math.max(0, cpu.agents);
-  const others = Math.max(0, (cpu.busy ?? agents) - agents);
-  const label = `CPU: ${(cpu.busy ?? agents).toFixed(1)} of ${cores} cores busy, agents ${agents.toFixed(1)}${free ? `, ${free} kept free for you` : ''}`;
-  return (
-    <Row label="CPU" value={`${(cpu.busy ?? agents).toFixed(1)}/${cores}`}>
-      <div className="flex gap-[3px]" role="img" aria-label={label} title={label}>
-        {Array.from({ length: cores }, (_, i) => {
-          const kept = i >= cores - free;
-          const a = Math.max(0, Math.min(1, agents - i));
-          const o = Math.max(0, Math.min(1 - a, agents + others - i - a));
-          return (
-            <span key={i} className={clsx('relative flex h-3.5 flex-1 overflow-hidden rounded-[4px]', kept ? 'core-free' : 'bg-surface-2')}>
-              {!kept && a > 0 ? <span className="h-full bg-[var(--s1)] transition-[width] duration-700" style={{ width: `${a * 100}%` }} /> : null}
-              {!kept && o > 0 ? <span className="h-full bg-[var(--border-strong)] transition-[width] duration-700" style={{ width: `${o * 100}%` }} /> : null}
-            </span>
-          );
-        })}
-      </div>
-    </Row>
-  );
-}
-
-/** Memory in use, coloured by macOS memory pressure (green, amber, red), with swap if there is any. */
-function MemRow({ mem }: { mem: MemInfo }) {
+/** Memory in use, coloured by macOS memory pressure (green, amber, red). */
+function MemGauge({ mem }: { mem: MemInfo }) {
   const gb = (b: number) => (b / 1024 ** 3).toFixed(b >= 10 * 1024 ** 3 ? 0 : 1);
-  mem = { ...mem, used: Math.min(mem.used, mem.total) };
+  const used = Math.min(mem.used, mem.total);
   const color = mem.pressure === 'critical' ? 'var(--critical)' : mem.pressure === 'warn' ? 'var(--warning)' : 'var(--good)';
-  const swap = mem.swap && mem.swap >= 256 * 1024 ** 2 ? ` · ${gb(mem.swap)} GB swap` : '';
+  const swap = mem.swap && mem.swap >= 256 * 1024 ** 2 ? `, ${gb(mem.swap)} GB swapped` : '';
   return (
-    <Row label="Mem" value={`${gb(mem.used)}/${gb(mem.total)} GB`}>
-      <div className="h-3 overflow-hidden rounded-full bg-surface-2" title={`Memory ${gb(mem.used)} of ${gb(mem.total)} GB${mem.pressure ? `, pressure ${mem.pressure}` : ''}${swap}`}>
-        <div className="h-full rounded-full transition-[width] duration-700" style={{ width: `${Math.max(2, Math.min(100, (mem.used / Math.max(1, mem.total)) * 100))}%`, background: color }} />
-      </div>
-    </Row>
+    <Gauge
+      label="Memory"
+      value={gb(used)}
+      sub={`/${gb(mem.total)} GB`}
+      parts={[{ from: 0, to: used / Math.max(1, mem.total), color }]}
+      needle={used / Math.max(1, mem.total)}
+      title={`Memory: ${gb(used)} of ${gb(mem.total)} GB${mem.pressure ? `, pressure ${mem.pressure}` : ''}${swap}`}
+    />
   );
 }
