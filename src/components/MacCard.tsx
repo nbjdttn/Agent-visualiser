@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import { Laptop } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
   latestState,
   nonce,
@@ -145,11 +145,11 @@ export function MacCard() {
         <div className="mt-3 grid grid-cols-3 gap-1">
           {state.cpu ? <CpuGauge cpu={state.cpu} gentle={live === 'gentle'} /> : <span />}
           {state.gpu !== undefined ? (
-            <Gauge
+            <Ring
               label="GPU"
-              value={`${Math.round(state.gpu)}%`}
-              parts={[{ from: 0, to: state.gpu / 100, color: 'var(--s3)' }]}
-              needle={state.gpu / 100}
+              value={`${Math.round(state.gpu)}`}
+              unit="%"
+              parts={[{ to: state.gpu / 100, color: 'var(--s3)' }]}
               title={`GPU ${Math.round(state.gpu)}% busy`}
             />
           ) : (
@@ -191,9 +191,9 @@ export function MacCard() {
   );
 }
 
-/** Dials sweep 240°, with the gap at the bottom like a car's speedometer. */
-const START = 150;
-const SWEEP = 240;
+/** Rings sweep 270°, open at the bottom, where the label sits. */
+const START = 135;
+const SWEEP = 270;
 const clamp01 = (x: number) => Math.max(0, Math.min(1, Number.isFinite(x) ? x : 0));
 
 function polar(cx: number, cy: number, r: number, deg: number): [number, number] {
@@ -208,92 +208,110 @@ function arc(cx: number, cy: number, r: number, from: number, to: number): strin
 }
 
 /**
- * A speedometer-style dial: coloured arc parts on a track, a needle that
- * swings to the value, the number in the gap below the hub, and optionally a
- * thin glowing green band outside the arc (the cores kept free for you).
+ * A glowing ring: a softly tinted track, the value as a gradient arc that
+ * glows in its own colour with a bright cap at the tip, the number in the
+ * middle and the label in the opening at the bottom. Parts follow each other
+ * round the ring; the first is the main one (it glows); a later part is drawn
+ * quietly. `band` is a thin glowing green arc outside the ring (the cores kept
+ * free for you).
  */
-function Gauge({
+function Ring({
   label,
   value,
-  sub,
+  unit,
   parts,
-  needle,
   band,
   title,
 }: {
   label: string;
   value: string;
-  sub?: string;
-  parts: { from: number; to: number; color: string }[];
-  needle: number;
+  unit?: string;
+  parts: { to: number; color: string; quiet?: boolean }[];
   band?: { from: number; to: number };
   title: string;
 }) {
-  const W = 100;
-  const H = 88;
+  const uid = useId().replace(/:/g, '');
+  const W = 104;
+  const H = 98;
   const r = 37;
-  const sw = 8;
+  const sw = 9;
   const cx = W / 2;
   const cy = 50;
   const track = arc(cx, cy, r, START, START + SWEEP);
+  const main = parts[0]?.color ?? 'var(--s1)';
+  // Each part ends where it says and starts where the one before ended; later parts are drawn
+  // underneath from the start of the ring, so only the stretch beyond the earlier part shows.
+  let from = 0;
+  const segs = parts.map((p) => {
+    const seg = { ...p, from, to: Math.max(from, clamp01(p.to)) };
+    from = seg.to;
+    return seg;
+  });
+  const lead = segs[0];
+  const tip = lead && lead.to - lead.from > 0.01 ? polar(cx, cy, r, START + SWEEP * lead.to) : undefined;
   return (
-    <div className="flex flex-col items-center" role="img" aria-label={title} title={title}>
+    <div className="flex justify-center" role="img" aria-label={title} title={title}>
       <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="overflow-visible" aria-hidden>
-        <path d={track} fill="none" style={{ stroke: 'var(--surface-2)' }} strokeWidth={sw} strokeLinecap="round" />
-        {parts
-          .filter((p) => clamp01(p.to) - clamp01(p.from) > 0.004)
-          .map((p, i) => (
-            <path
-              key={i}
-              d={track}
-              pathLength={100}
-              fill="none"
-              style={{ stroke: p.color, transition: 'stroke-dasharray 700ms ease, stroke-dashoffset 700ms ease' }}
-              strokeWidth={sw}
-              strokeLinecap="round"
-              strokeDasharray={`${((clamp01(p.to) - clamp01(p.from)) * 100).toFixed(2)} 200`}
-              strokeDashoffset={(-clamp01(p.from) * 100).toFixed(2)}
-            />
-          ))}
+        <defs>
+          <linearGradient id={`${uid}g`} x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0" stopColor={`color-mix(in srgb, ${main} 70%, white)`} />
+            <stop offset="1" stopColor={main} />
+          </linearGradient>
+        </defs>
+        <path d={track} fill="none" style={{ stroke: `color-mix(in srgb, ${main} 14%, transparent)` }} strokeWidth={sw} strokeLinecap="round" />
+        {segs
+          .slice()
+          .reverse()
+          .filter((p) => p.to - p.from > 0.004)
+          .map((p, i) => {
+            const isLead = p === lead;
+            return (
+              <path
+                key={i}
+                d={track}
+                pathLength={100}
+                fill="none"
+                strokeWidth={sw}
+                strokeLinecap="round"
+                strokeDasharray={`${(p.to * 100).toFixed(2)} 200`}
+                style={{
+                  stroke: isLead ? `url(#${uid}g)` : `color-mix(in srgb, ${p.color} 55%, transparent)`,
+                  filter: isLead ? `drop-shadow(0 0 5px color-mix(in srgb, ${p.color} 60%, transparent))` : undefined,
+                  transition: 'stroke-dasharray 800ms cubic-bezier(0.2, 0.7, 0.2, 1)',
+                }}
+              />
+            );
+          })}
+        {tip ? <circle cx={tip[0]} cy={tip[1]} r={2.2} style={{ fill: 'white', opacity: 0.9 }} /> : null}
         {band && band.to - band.from > 0.004 ? (
-          <path
-            d={arc(cx, cy, r + sw / 2 + 4.5, START + SWEEP * clamp01(band.from), START + SWEEP * clamp01(band.to))}
-            fill="none"
-            className="gauge-band"
-            strokeWidth={3.5}
-            strokeLinecap="round"
-          />
+          <path d={arc(cx, cy, r + sw / 2 + 4.5, START + SWEEP * clamp01(band.from), START + SWEEP * clamp01(band.to))} fill="none" className="gauge-band" strokeWidth={3.5} strokeLinecap="round" />
         ) : null}
-        <g style={{ transform: `rotate(${START + SWEEP * clamp01(needle)}deg)`, transformOrigin: `${cx}px ${cy}px`, transition: 'transform 800ms cubic-bezier(0.2, 0.7, 0.2, 1)' }}>
-          <line x1={cx - 5} y1={cy} x2={cx + r - sw / 2 - 5} y2={cy} style={{ stroke: 'var(--text)' }} strokeWidth={2.5} strokeLinecap="round" />
-        </g>
-        <circle cx={cx} cy={cy} r={5} style={{ fill: 'var(--text)' }} />
-        <circle cx={cx} cy={cy} r={2} style={{ fill: 'var(--surface)' }} />
-        <text x={cx} y={cy + 32} textAnchor="middle" className="tnum" style={{ fill: 'var(--text)', fontSize: 15.5, fontWeight: 700 }}>
+        <text x={cx} y={cy + 7} textAnchor="middle" className="tnum" style={{ fill: 'var(--text)', fontSize: 21, fontWeight: 750, letterSpacing: '-0.02em' }}>
           {value}
-          {sub ? <tspan style={{ fill: 'var(--muted)', fontSize: 11.5, fontWeight: 600 }}>{sub}</tspan> : null}
+          {unit ? <tspan style={{ fill: 'var(--muted)', fontSize: 12, fontWeight: 600 }}>{unit}</tspan> : null}
+        </text>
+        <text x={cx} y={cy + r + 3} textAnchor="middle" style={{ fill: 'var(--muted)', fontSize: 12, fontWeight: 650 }}>
+          {label}
         </text>
       </svg>
-      <span className="-mt-0.5 text-[12.5px] font-semibold text-muted">{label}</span>
     </div>
   );
 }
 
-/** CPU: agents in blue, everything else in grey, the needle at the total; the cores kept free for you glow green. */
+/** CPU: the agents glow blue, everything else follows quietly; the cores kept free for you glow green outside the ring. */
 function CpuGauge({ cpu, gentle }: { cpu: CpuInfo; gentle: boolean }) {
   const cores = Math.max(1, cpu.cores);
   const busy = Math.max(cpu.busy ?? cpu.agents, cpu.agents);
   const free = gentle ? Math.max(0, Math.min(cores, cpu.free)) : 0;
   return (
-    <Gauge
+    <Ring
       label="CPU"
       value={busy.toFixed(1)}
-      sub={`/${cores}`}
+      unit={`/${cores}`}
       parts={[
-        { from: 0, to: cpu.agents / cores, color: 'var(--s1)' },
-        { from: cpu.agents / cores, to: busy / cores, color: 'var(--border-strong)' },
+        { to: cpu.agents / cores, color: 'var(--s1)' },
+        { to: busy / cores, color: 'var(--muted)', quiet: true },
       ]}
-      needle={busy / cores}
       band={free ? { from: 1 - free / cores, to: 1 } : undefined}
       title={`CPU: ${busy.toFixed(1)} of ${cores} cores busy, agents ${cpu.agents.toFixed(1)}${free ? `; ${free} kept free for you` : ''}`}
     />
@@ -307,12 +325,11 @@ function MemGauge({ mem }: { mem: MemInfo }) {
   const color = mem.pressure === 'critical' ? 'var(--critical)' : mem.pressure === 'warn' ? 'var(--warning)' : 'var(--good)';
   const swap = mem.swap && mem.swap >= 256 * 1024 ** 2 ? `, ${gb(mem.swap)} GB swapped` : '';
   return (
-    <Gauge
+    <Ring
       label="Memory"
       value={gb(used)}
-      sub={`/${gb(mem.total)} GB`}
-      parts={[{ from: 0, to: used / Math.max(1, mem.total), color }]}
-      needle={used / Math.max(1, mem.total)}
+      unit={`/${gb(mem.total)}G`}
+      parts={[{ to: used / Math.max(1, mem.total), color }]}
       title={`Memory: ${gb(used)} of ${gb(mem.total)} GB${mem.pressure ? `, pressure ${mem.pressure}` : ''}${swap}`}
     />
   );
