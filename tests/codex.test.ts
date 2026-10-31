@@ -138,3 +138,45 @@ describe('CodexSource', () => {
     expect(zs).toHaveLength(2);
   });
 });
+
+describe('Codex carried-over totals', () => {
+  const PARENT = '0166aaaa-bbbb-7ccc-8ddd-111111111111';
+  const FORK = '0166aaaa-bbbb-7ccc-8ddd-222222222222';
+  const CHILD = '0166aaaa-bbbb-7ccc-8ddd-333333333333';
+  const count = (ts: string, total: ReturnType<typeof usage>, last: ReturnType<typeof usage>) => ({
+    timestamp: ts,
+    type: 'event_msg',
+    payload: { type: 'token_count', info: { total_token_usage: total, last_token_usage: last } },
+  });
+  const meta = (id: string) => ({ timestamp: '2026-07-10T08:00:00.000Z', type: 'session_meta', payload: { id, cwd: CWD } });
+  const parentLines = [
+    meta(PARENT),
+    count('2026-07-10T08:00:05.000Z', usage(10_000, 0, 500, 0), usage(10_000, 0, 500, 0)),
+    count('2026-07-10T08:01:00.000Z', usage(30_000, 9_000, 900, 0), usage(20_000, 9_000, 400, 0)),
+  ];
+  const root = tempTree({
+    [`sessions/2026/07/10/rollout-a-${PARENT}.jsonl`]: jsonl(...parentLines),
+    // A fork copies the parent's lines, then carries on.
+    [`sessions/2026/07/11/rollout-b-${FORK}.jsonl`]: jsonl(
+      meta(FORK),
+      ...parentLines.slice(1),
+      count('2026-07-11T09:00:00.000Z', usage(45_000, 25_000, 1_200, 0), usage(15_000, 14_000, 300, 0)),
+    ),
+    // A spawned agent / resumed session whose first total is the parent's huge running total.
+    [`sessions/2026/07/12/rollout-c-${CHILD}.jsonl`]: jsonl(
+      meta(CHILD),
+      count('2026-07-12T10:00:00.000Z', usage(900_000_000, 850_000_000, 4_000_000, 0), usage(5_000, 1_000, 200, 0)),
+      count('2026-07-12T10:01:00.000Z', usage(900_007_000, 850_003_000, 4_000_300, 0), usage(7_000, 3_000, 300, 0)),
+    ),
+  });
+  const source = new CodexSource([path.join(root, 'sessions')]);
+
+  it('counts copied lines once and never the carried-over running total', async () => {
+    await source.scan();
+    const events = source.snapshot().events;
+    const tokens = events.reduce((a, e) => a + e.input + e.cacheRead + e.output, 0);
+    // Parent 10,500 + 20,400; fork's own step 15,300; child 5,200 + 7,300.
+    expect(tokens).toBe(10_500 + 20_400 + 15_300 + 5_200 + 7_300);
+    expect(events.filter((e) => e.ts === Date.parse('2026-07-12T10:00:00.000Z'))[0]?.input).toBe(4_000);
+  });
+});

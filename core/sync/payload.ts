@@ -430,3 +430,73 @@ export function cloudSnapshot(history: CloudHistory): SourceSnapshot {
   events.sort((a, b) => a.ts - b.ts);
   return { events, sessions, projects };
 }
+
+// ---------------------------------------------------------------------------
+// The computer's archive: everything it has sent, so usage stays on the phone
+// after Claude Code or Codex delete old logs (Claude Code keeps 30 days by default).
+// ---------------------------------------------------------------------------
+
+/** Bump when the way logs are read changes, so the archive is rebuilt from the logs. */
+export const ARCHIVE_VERSION = 2;
+
+export interface RollupArchive {
+  v: number;
+  /** Rollup rows with names instead of string indexes, keyed by hour/source/model/project/session/flags. */
+  rows: Record<string, (string | number)[]>;
+  sessions: Record<string, StoredSession>;
+  projects: Record<string, StoredProject>;
+}
+
+export const emptyArchive = (): RollupArchive => ({ v: ARCHIVE_VERSION, rows: {}, sessions: {}, projects: {} });
+
+const rowTokens = (r: (string | number)[]) => Number(r[5]) + Number(r[6]) + Number(r[7]) + Number(r[8]);
+
+/**
+ * Fold a fresh rollup into the archive. A row only grows while its logs are
+ * written and shrinks or vanishes when logs are deleted, so the larger
+ * version of each row wins and rows missing from the logs are kept.
+ */
+export function mergeIntoArchive(archive: RollupArchive, r: Rollup): RollupArchive {
+  const name = (i: number) => r.strings[i] ?? 'unknown';
+  for (const row of r.rows) {
+    const named: (string | number)[] = [row[0], name(row[1]), name(row[2]), name(row[3]), row[4] >= 0 ? name(row[4]) : '', ...row.slice(5, TOOLS_AT)];
+    for (let i = TOOLS_AT; i + 1 < row.length; i += 2) named.push(name(row[i]), row[i + 1]);
+    const key = `${named[0]}|${named[1]}|${named[2]}|${named[3]}|${named[4]}|${row[13]}`;
+    const prev = archive.rows[key];
+    if (!prev || rowTokens(named) >= rowTokens(prev)) archive.rows[key] = named;
+  }
+  for (const s of r.sessions) {
+    const prev = archive.sessions[s.key];
+    archive.sessions[s.key] = prev && prev.lastTs > s.lastTs ? { ...s, ...prev, prompts: Math.max(prev.prompts, s.prompts) } : { ...s, prompts: Math.max(prev?.prompts ?? 0, s.prompts) };
+  }
+  for (const p of r.projects) {
+    const prev = archive.projects[p.key];
+    const branches = new Set([...(prev?.branches ?? []), ...(p.branches ?? [])]);
+    archive.projects[p.key] = { ...(prev ?? {}), ...p, repo: p.repo ?? prev?.repo, branches: branches.size ? [...branches].slice(0, 40) : undefined };
+  }
+  return archive;
+}
+
+/** Turn the archive back into a rollup to send. */
+export function rollupFromArchive(a: RollupArchive, codexLimits?: CodexLimits): Rollup {
+  const strings: string[] = [];
+  const ids = new Map<string, number>();
+  const intern = (s: string) => {
+    let i = ids.get(s);
+    if (i === undefined) {
+      i = strings.length;
+      strings.push(s);
+      ids.set(s, i);
+    }
+    return i;
+  };
+  const rows = Object.values(a.rows)
+    .map((n) => {
+      const row: number[] = [Number(n[0]), intern(String(n[1])), intern(String(n[2])), intern(String(n[3])), n[4] ? intern(String(n[4])) : -1];
+      for (let i = 5; i < TOOLS_AT; i++) row.push(Number(n[i]));
+      for (let i = TOOLS_AT; i + 1 < n.length; i += 2) row.push(intern(String(n[i])), Number(n[i + 1]));
+      return row;
+    })
+    .sort((x, y) => x[0] - y[0] || x[4] - y[4]);
+  return { strings, rows, sessions: Object.values(a.sessions), projects: Object.values(a.projects), codexLimits };
+}

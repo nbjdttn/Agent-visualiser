@@ -10,6 +10,7 @@
  *   npm run sync -- once                 scan and publish once
  *   npm run sync -- watch                keep running and publish changes (what the background job runs)
  *   npm run sync -- status               what has been sent, and to which devices
+ *   npm run sync -- report               tokens and cost per month, source and model, and the busiest days
  *   npm run sync -- uninstall            stop the background job
  *   npm run sync -- init                 create the usage-data branch (done automatically by the other commands)
  *   npm run sync -- add-device CODE [NAME]   register a phone (the code from Data -> Automatic updates)
@@ -32,14 +33,20 @@ import { tokensOf } from '../core/aggregate.js';
 import { Pricing } from '../core/pricing.js';
 import { kidOf, parseDeviceCode, publicKeyBytes, sealJson, type DevicePublic } from '../core/sync/envelope.js';
 import {
+  ARCHIVE_VERSION,
   CLOUD_FILE,
   DEVICES_DIR,
   INDEX_FILE,
   SYNC_BRANCH,
   cloudPayloadFrom,
   computerFile,
+  emptyArchive,
+  mergeIntoArchive,
+  rollupFromArchive,
   rollupSnapshots,
   type ComputerPayload,
+  type Rollup,
+  type RollupArchive,
   type SyncIndex,
   type SyncKind,
   type SyncPayload,
@@ -60,6 +67,8 @@ const SCAN_MS = 2 * 60_000;
 const DEVICE_CHECK_MS = 15 * 60_000;
 const CONFIG_DIR = path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), 'agent-visualiser');
 const STATE_FILE = path.join(CONFIG_DIR, 'sync.json');
+/** Everything this computer has sent, kept after Claude Code or Codex delete their old logs. */
+const ARCHIVE_FILE = path.join(CONFIG_DIR, 'archive.json');
 const CACHE_DIR = process.env.AGENT_VISUALISER_CACHE || path.join(process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache'), 'agent-visualiser');
 const LABEL = 'io.github.agent-visualiser.sync';
 const PLIST = path.join(os.homedir(), 'Library', 'LaunchAgents', `${LABEL}.plist`);
@@ -118,6 +127,23 @@ function loadState(): State {
 function saveState(s: State) {
   fs.mkdirSync(CONFIG_DIR, { recursive: true });
   fs.writeFileSync(STATE_FILE, JSON.stringify(s, null, 2) + '\n');
+}
+
+function loadArchive(): RollupArchive {
+  try {
+    const a = JSON.parse(fs.readFileSync(ARCHIVE_FILE, 'utf8')) as RollupArchive;
+    if (a.v === ARCHIVE_VERSION && a.rows) return a;
+  } catch {
+    // none yet
+  }
+  return emptyArchive();
+}
+
+function saveArchive(a: RollupArchive) {
+  fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  const tmp = `${ARCHIVE_FILE}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(a));
+  fs.renameSync(tmp, ARCHIVE_FILE);
 }
 
 async function computerName(): Promise<string> {
@@ -272,7 +298,10 @@ class ComputerScanner {
       this.pricedAt = Date.now();
     }
     await Promise.all([this.claude.scan(), this.codex.scan()]);
-    const rollup = rollupSnapshots([this.claude.snapshot(), this.codex.snapshot()], this.pricing);
+    const fresh = rollupSnapshots([this.claude.snapshot(), this.codex.snapshot()], this.pricing);
+    const archive = mergeIntoArchive(loadArchive(), fresh);
+    saveArchive(archive);
+    const rollup = rollupFromArchive(archive, fresh.codexLimits);
     const statuses = [this.claude.status(), this.codex.status()];
     const hash = crypto
       .createHash('sha256')
@@ -461,6 +490,39 @@ async function status() {
   for (const [name, f] of Object.entries(index.files)) console.log(`  ${name}  ${f.kind}, ${new Date(f.updatedAt).toLocaleString()}, for ${f.recipients.length} device(s)`);
 }
 
+async function report() {
+  const { payload } = await new ComputerScanner().build();
+  const r: Rollup = payload.rollup;
+  const name = (i: number) => r.strings[i] ?? '?';
+  const months = new Map<string, Map<string, { tokens: number; cost: number }>>();
+  const days = new Map<string, { tokens: number; source: string }>();
+  for (const row of r.rows) {
+    const d = new Date(row[0] * 3600_000);
+    const month = d.toISOString().slice(0, 7);
+    const day = d.toISOString().slice(0, 10);
+    const key = `${name(row[1])} · ${name(row[2])}`;
+    const tokens = row[5] + row[6] + row[7] + row[8];
+    let m = months.get(month);
+    if (!m) months.set(month, (m = new Map()));
+    const t = m.get(key) ?? { tokens: 0, cost: 0 };
+    t.tokens += tokens;
+    t.cost += row[12] / 1e6;
+    m.set(key, t);
+    const dk = `${day} ${name(row[1])}`;
+    days.set(dk, { tokens: (days.get(dk)?.tokens ?? 0) + tokens, source: name(row[1]) });
+  }
+  console.log(`${payload.name}: ${r.sessions.length} sessions\n`);
+  for (const [month, m] of [...months.entries()].sort()) {
+    const total = [...m.values()].reduce((a, t) => a + t.tokens, 0);
+    console.log(`${month}  ${compact(total).padStart(7)} tokens`);
+    for (const [key, t] of [...m.entries()].sort((a, b) => b[1].tokens - a[1].tokens).slice(0, 5)) {
+      console.log(`           ${compact(t.tokens).padStart(7)}  ${usd(t.cost).padStart(9)}  ${key}`);
+    }
+  }
+  console.log('\nBusiest days:');
+  for (const [k, v] of [...days.entries()].sort((a, b) => b[1].tokens - a[1].tokens).slice(0, 8)) console.log(`  ${k}  ${compact(v.tokens)}`);
+}
+
 // ---------------------------------------------------------------------------
 // Devices and the cloud collector
 // ---------------------------------------------------------------------------
@@ -518,6 +580,8 @@ async function main() {
       return uninstall();
     case 'status':
       return status();
+    case 'report':
+      return report();
     case 'init':
       return init();
     case 'add-device':

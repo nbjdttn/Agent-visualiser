@@ -189,3 +189,30 @@ describe('cloud sessions', () => {
     expect(h.s.readings).toEqual([[created + 2 * HOUR_MS, 50, 1, 0, 0, 0]]);
   });
 });
+
+describe('computer archive', () => {
+  it('keeps sessions whose logs were deleted, and the larger version of each hour', async () => {
+    const { emptyArchive, mergeIntoArchive, rollupFromArchive } = await import('../core/sync/payload');
+    const pricing = new Pricing();
+    const t = Date.parse('2026-07-10T10:15:00Z');
+    const snap = (events: RawEvent[]): SourceSnapshot => ({
+      events,
+      sessions: new Map(
+        [...new Set(events.map((e) => e.sessionKey!))].map((k) => [k, { ...newSessionMeta(k, k.split(':')[1], 'claude-code', 'dir:/w', t), title: k, titleRank: 3 }]),
+      ),
+      projects: new Map(),
+    });
+    // July: two sessions in the logs.
+    let archive = mergeIntoArchive(emptyArchive(), rollupSnapshots([snap([ev({ key: 'a', ts: t, sessionKey: 'claude-code:old' }), ev({ key: 'b', ts: t, sessionKey: 'claude-code:new' })])], pricing));
+    // Later: Claude Code deleted the old session's log; the new one grew within the same hour.
+    archive = mergeIntoArchive(
+      JSON.parse(JSON.stringify(archive)),
+      rollupSnapshots([snap([ev({ key: 'b', ts: t, sessionKey: 'claude-code:new' }), ev({ key: 'c', ts: t + 60_000, sessionKey: 'claude-code:new' })])], pricing),
+    );
+    const out = expandRollup(rollupFromArchive(archive));
+    const by = (k: string) => out.events.filter((e) => e.sessionKey === k).reduce((a, e) => a + e.output, 0);
+    expect(by('claude-code:old')).toBe(100);
+    expect(by('claude-code:new')).toBe(200);
+    expect([...out.sessions.keys()].sort()).toEqual(['claude-code:new', 'claude-code:old']);
+  });
+});

@@ -103,6 +103,9 @@ export function looksLikeCodexLine(line: string): boolean {
   return /"type":"(session_meta|turn_context|response_item|event_msg|token_usage_record)"/.test(line) && line.includes('"payload"');
 }
 
+/** Larger than any single request and reply can be (context windows top out around 1M tokens). */
+const MAX_RESPONSE_TOKENS = 4_000_000;
+
 const INTERESTING = [
   '"session_meta"',
   '"turn_context"',
@@ -206,12 +209,23 @@ export async function parseCodexLines(
         };
       }
       const total: TokenUsage | undefined = p.info?.total_token_usage;
+      const last: TokenUsage | undefined = p.info?.last_token_usage;
       if (!total) continue;
-      let delta: TokenUsage | undefined = prevTotal ? diffUsage(total, prevTotal) : total;
-      if (!delta) delta = p.info?.last_token_usage ?? total;
+      // The growth of the running total is this event's usage. But a file's
+      // first total (and one after a reset) can carry usage from elsewhere:
+      // resumed and forked sessions and spawned agents start from the parent's
+      // running total. There, only the latest response is new.
+      let delta: TokenUsage | undefined = prevTotal ? diffUsage(total, prevTotal) : undefined;
+      if (!delta) delta = last ?? (prevTotal ? undefined : total);
+      // No single response is this large: it can only be carried-over usage.
+      if (delta && num(delta.input_tokens) + num(delta.output_tokens) > MAX_RESPONSE_TOKENS) {
+        delta = last && num(last.input_tokens) + num(last.output_tokens) <= MAX_RESPONSE_TOKENS ? last : undefined;
+      }
       prevTotal = total;
       if (!delta || (num(delta.input_tokens) <= 0 && num(delta.output_tokens) <= 0)) continue;
-      counted.push(make('', ts, model, delta, toolsForCount));
+      // Forks copy earlier lines verbatim, so the same event can sit in several files: key it to count it once.
+      const key = `codex-count:${String(o.timestamp)}:${num(total.input_tokens)}:${num(total.output_tokens)}:${num(total.total_tokens)}`;
+      counted.push(make(key, ts, model, delta, toolsForCount));
       toolsForCount = [];
     } else if (kind === 'event_msg' && p.type === 'user_message') {
       const text = str(p.message)?.trim();
