@@ -136,7 +136,7 @@ function DemoNote({ compactLayout }: { compactLayout?: boolean }) {
     <a
       href="#/sources"
       className={clsx(
-        'block rounded-xl border border-dashed border-line-strong text-[12.5px] leading-snug text-ink-2 hover:bg-surface',
+        'block rounded-xl border border-dashed border-line-strong text-[14px] leading-snug text-ink-2 hover:bg-surface lg:text-[12.5px]',
         compactLayout ? 'px-3 py-2' : 'px-3 py-2.5',
       )}
     >
@@ -164,11 +164,11 @@ function TabBar({ route }: { route: Route }) {
               href={href(item.route)}
               aria-current={active ? 'page' : undefined}
               className={clsx(
-                'flex min-h-[58px] flex-1 flex-col items-center justify-center gap-1 text-[12px] font-medium',
+                'flex min-h-[64px] flex-1 flex-col items-center justify-center gap-1 text-[13.5px] font-semibold',
                 active ? 'text-ink' : 'text-muted',
               )}
             >
-              <Icon size={24} strokeWidth={active ? 2.3 : 1.9} aria-hidden />
+              <Icon size={26} strokeWidth={active ? 2.3 : 1.9} aria-hidden />
               {item.short}
             </a>
           );
@@ -186,8 +186,8 @@ function ThemeToggle() {
       align="right"
       width={250}
       trigger={() => (
-        <span className="inline-flex h-10 w-10 items-center justify-center rounded-[12px] border border-line bg-surface text-ink-2 hover:text-ink lg:h-9 lg:w-9 lg:rounded-[10px]">
-          <Palette size={18} aria-hidden />
+        <span className="inline-flex h-11 w-11 items-center justify-center rounded-[13px] border border-line bg-surface text-ink-2 hover:text-ink lg:h-9 lg:w-9 lg:rounded-[10px]">
+          <Palette size={21} aria-hidden />
         </span>
       )}
     >
@@ -257,11 +257,11 @@ export function AppShell({
           <div className="mx-auto flex max-w-[1480px] flex-col gap-3 px-4 py-3 sm:px-6 lg:px-8">
             <div className="flex items-center gap-3">
               <a href="#/" className="shrink-0 lg:hidden" aria-label="Agent Visualiser home">
-                <Logo size={28} />
+                <Logo size={36} />
               </a>
               <div className="min-w-0 flex-1">
-                <h1 className="truncate text-[19px] font-semibold tracking-[-0.02em]">{title}</h1>
-                {subtitle && <p className="truncate text-[12.5px] text-muted">{subtitle}</p>}
+                <h1 className="truncate text-[26px] font-bold leading-tight tracking-[-0.025em] lg:text-[19px] lg:font-semibold">{title}</h1>
+                {subtitle && <p className="truncate text-[15px] text-muted lg:text-[12.5px]">{subtitle}</p>}
               </div>
               {mode === 'server' && (
                 <button
@@ -282,10 +282,10 @@ export function AppShell({
               {mode === 'device' && route.page !== 'sources' && (
                 <a
                   href="#/sources"
-                  className="inline-flex h-10 items-center gap-1.5 rounded-[12px] border border-line bg-surface px-3 text-[14px] font-medium text-ink-2 hover:text-ink lg:h-9 lg:rounded-[10px] lg:px-2.5 lg:text-[13px]"
+                  className="inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-[13px] border border-line bg-surface px-3 text-[14px] font-medium text-ink-2 hover:text-ink lg:h-9 lg:min-w-0 lg:rounded-[10px] lg:px-2.5 lg:text-[13px]"
                   aria-label="Import data"
                 >
-                  <Upload size={15} aria-hidden />
+                  <Upload size={20} aria-hidden />
                   <span className="hidden sm:inline">Import</span>
                 </a>
               )}
@@ -294,7 +294,7 @@ export function AppShell({
             {filters}
           </div>
         </header>
-        <main className="mx-auto max-w-[1480px] px-4 pb-[calc(84px_+_env(safe-area-inset-bottom))] pt-4 sm:px-6 lg:px-8 lg:py-6">
+        <main className="mx-auto max-w-[1480px] px-4 pb-[calc(92px_+_env(safe-area-inset-bottom))] pt-4 sm:px-6 lg:px-8 lg:py-6">
           {data?.raw.demo && route.page !== 'sources' && (
             <div className="mb-4 lg:hidden">
               <DemoNote compactLayout />

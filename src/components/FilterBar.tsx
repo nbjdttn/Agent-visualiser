@@ -58,7 +58,7 @@ export function FilterBar({ hideProject }: { hideProject?: boolean }) {
   return (
     <>
       {/* Phone: date, provider and a sheet with the rest. */}
-      <div className="flex items-center gap-2 lg:hidden">
+      <div className="flex flex-wrap items-center gap-2 max-[389px]:gap-1.5 lg:hidden">
         <DateRangePicker compactLabel />
         {provider}
         {data && (
@@ -66,12 +66,12 @@ export function FilterBar({ hideProject }: { hideProject?: boolean }) {
             type="button"
             onClick={() => setSheet(true)}
             className={clsx(
-              'relative ml-auto inline-flex h-10 w-11 shrink-0 items-center justify-center rounded-[12px] border bg-surface lg:h-8 lg:w-9 lg:rounded-[10px]',
+              'relative ml-auto inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] border bg-surface lg:h-8 lg:w-9 lg:rounded-[10px]',
               sheetCount ? 'border-line-strong text-ink' : 'border-line text-ink-2',
             )}
             aria-label={`More filters${sheetCount ? `, ${sheetCount} active` : ''}`}
           >
-            <SlidersHorizontal size={16} aria-hidden />
+            <SlidersHorizontal size={20} aria-hidden />
             {sheetCount > 0 && (
               <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-ink px-1 text-[10px] font-semibold text-page">
                 {sheetCount}
@@ -157,10 +157,10 @@ function DateRangePicker({ compactLabel }: { compactLabel?: boolean }) {
       width={280}
       trigger={(open) => (
         <TriggerButton open={open} active>
-          <CalendarDays size={14} className="text-muted" aria-hidden />
+          <CalendarDays size={17} className="text-muted" aria-hidden />
           <span>{filters.preset === 'custom' ? 'Custom' : compactLabel ? preset?.short : presetLabel(filters)}</span>
           {!compactLabel && <span className="hidden font-normal text-muted md:inline">· {rangeLabel(range.from, range.to)}</span>}
-          <ChevronDown size={14} className="text-muted" aria-hidden />
+          <ChevronDown size={16} className="text-muted" aria-hidden />
         </TriggerButton>
       )}
     >
@@ -231,7 +231,7 @@ function SourcePicker({ data }: { data: Data }) {
         <TriggerButton open={open} active={sel.length > 0}>
           <Boxes size={14} className="text-muted" aria-hidden />
           {label}
-          <ChevronDown size={14} className="text-muted" aria-hidden />
+          <ChevronDown size={16} className="text-muted" aria-hidden />
         </TriggerButton>
       )}
     >
@@ -338,7 +338,7 @@ function ProjectPicker({ data }: { data: Data }) {
         <TriggerButton open={open} active={Boolean(current)}>
           <FolderGit2 size={14} className="text-muted" aria-hidden />
           <span className="max-w-[160px] truncate">{current ? current.name : 'All projects'}</span>
-          <ChevronDown size={14} className="text-muted" aria-hidden />
+          <ChevronDown size={16} className="text-muted" aria-hidden />
         </TriggerButton>
       )}
     >
@@ -370,7 +370,7 @@ function ModelPicker({ data }: { data: Data }) {
         <TriggerButton open={open} active={Boolean(current)}>
           <Cpu size={14} className="text-muted" aria-hidden />
           <span className="max-w-[140px] truncate">{current ? current.label : 'All models'}</span>
-          <ChevronDown size={14} className="text-muted" aria-hidden />
+          <ChevronDown size={16} className="text-muted" aria-hidden />
         </TriggerButton>
       )}
     >

@@ -67,7 +67,7 @@ export function Segmented<T extends string>({
             onClick={() => onChange(o.value)}
             className={clsx(
               'whitespace-nowrap rounded-[7px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40',
-              size === 'sm' ? 'px-2.5 py-1 text-[12px]' : 'px-3.5 py-2 text-[15px] lg:px-3 lg:py-1.5 lg:text-[13px]',
+              size === 'sm' ? 'px-2.5 py-1 text-[12px]' : 'px-3 py-2.5 text-[15px] font-semibold max-[389px]:px-2 max-[389px]:text-[14px] lg:py-1.5 lg:text-[13px] lg:font-medium',
               active ? 'bg-surface text-ink shadow-[0_1px_2px_rgba(0,0,0,0.12)] ring-1 ring-line' : 'text-ink-2 hover:text-ink',
             )}
           >
