@@ -1,8 +1,8 @@
 // Offline support for the phone app: the page itself is fetched fresh when
 // online (so updates arrive) and served from cache when offline; built assets
 // have content hashes in their names, so they are cached once and reused.
-const CACHE = 'agent-visualiser-v1';
-const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/apple-touch-icon.png'];
+const CACHE = 'agent-visualiser-v2';
+const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/app-icon-180.png'];
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

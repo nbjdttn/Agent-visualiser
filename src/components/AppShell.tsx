@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import { Activity, Cpu, Database, FolderKanban, LayoutDashboard, Monitor, Moon, RotateCw, ScrollText, Sun, Upload } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { compact, usd } from '../lib/format';
 import { href, type Route } from '../lib/router';
 import { useData, useTheme, type ThemePref } from '../lib/store';
@@ -25,13 +25,40 @@ const NAV: NavItem[] = [
   { route: { page: 'sources' }, label: 'Your data', short: 'Data', icon: Database, match: ['sources'] },
 ];
 
+/** The app icon: two usage rings (Claude orange outside, OpenAI green inside) around an AI sparkle. */
 export function Logo({ size = 30 }: { size?: number }) {
+  const id = useId().replace(/:/g, '');
+  // Same geometry as public/icons/app-icon.svg, on a 32-unit grid.
+  const ring = (r: number, degrees: number) => {
+    const a = ((degrees - 90) * Math.PI) / 180;
+    return `M16 ${16 - r} A${r} ${r} 0 ${degrees > 180 ? 1 : 0} 1 ${(16 + r * Math.cos(a)).toFixed(2)} ${(16 + r * Math.sin(a)).toFixed(2)}`;
+  };
+  const k = 0.42;
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
-      <rect x="1" y="1" width="30" height="30" rx="9" style={{ fill: 'var(--text)' }} />
-      <path d="M9 21.5l4.2-6 3.6 3.6 6.2-8.6" fill="none" style={{ stroke: 'var(--page)' }} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="23" cy="10.5" r="2.6" style={{ fill: 'var(--anthropic)' }} />
-      <circle cx="9" cy="21.5" r="2.6" style={{ fill: 'var(--openai)' }} />
+      <defs>
+        <linearGradient id={`${id}bg`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#2a2733" />
+          <stop offset="1" stopColor="#0c0b10" />
+        </linearGradient>
+        <linearGradient id={`${id}o`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#ffa36c" />
+          <stop offset="1" stopColor="#e2582b" />
+        </linearGradient>
+        <linearGradient id={`${id}g`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#5ff0b4" />
+          <stop offset="1" stopColor="#11a37f" />
+        </linearGradient>
+      </defs>
+      <rect width="32" height="32" rx="7.2" fill={`url(#${id}bg)`} />
+      <circle cx="16" cy="16" r="9.94" fill="none" stroke="#fff" strokeOpacity="0.08" strokeWidth="3" />
+      <circle cx="16" cy="16" r="6" fill="none" stroke="#fff" strokeOpacity="0.08" strokeWidth="3" />
+      <path d={ring(9.94, 284)} fill="none" stroke={`url(#${id}o)`} strokeWidth="3" strokeLinecap="round" />
+      <path d={ring(6, 212)} fill="none" stroke={`url(#${id}g)`} strokeWidth="3" strokeLinecap="round" />
+      <path
+        d={`M16 13.4 C${16 + k} ${16 - k} ${16 + k} ${16 - k} 18.6 16 C${16 + k} ${16 + k} ${16 + k} ${16 + k} 16 18.6 C${16 - k} ${16 + k} ${16 - k} ${16 + k} 13.4 16 C${16 - k} ${16 - k} ${16 - k} ${16 - k} 16 13.4 Z`}
+        fill="#fff"
+      />
     </svg>
   );
 }
