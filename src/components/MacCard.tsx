@@ -38,7 +38,8 @@ const MODES: { value: GentleMode; label: string; title: string }[] = [
 ];
 
 /**
- * Your Mac's gentle mode, from the phone. The mode you're in glows; below the
+ * Your Mac's gentle mode, from the phone. The switch shows your choice (white)
+ * and what the Mac is doing right now (glowing green: Work or Full speed); below the
  * name is a short system panel: one block per CPU core (blue for the agents,
  * grey for everything else, glowing green for the ones kept free for you),
  * then GPU and memory.
@@ -121,6 +122,7 @@ export function MacCard() {
   const stale = !state || Date.now() - state.at > 75 * 60_000;
   const current = state?.mode ?? 'auto';
   const live = state && !stale ? (state.live ?? (state.here ? 'gentle' : 'full')) : undefined;
+  const nowOption: GentleMode | undefined = live === 'gentle' ? 'work' : live === 'full' ? 'full' : undefined;
   const note = offline ? 'Offline' : !loaded ? '' : !state ? 'Not connected' : stale ? relative(state.at) : '';
 
   return (
@@ -147,24 +149,29 @@ export function MacCard() {
         </div>
       ) : null}
 
+      {/* The white button is your choice; the green glow is what the Mac is doing right now
+          (Work while it keeps cores free for you, Full speed while the agents have it all). */}
       <div role="radiogroup" aria-label="Agents on your Mac" className="mt-3.5 flex h-12 w-full items-center gap-1 rounded-[15px] border border-line bg-surface-2 p-1 lg:h-11">
         {MODES.map((m) => {
-          const on = (pending ?? current) === m.value;
+          const chosen = (pending ?? current) === m.value;
+          const glowing = !pending && nowOption === m.value;
           return (
             <button
               key={m.value}
               type="button"
               role="radio"
-              aria-checked={on}
-              title={m.title}
+              aria-checked={chosen}
+              title={glowing ? `${m.title} (what your Mac is doing now)` : m.title}
               onClick={() => void choose(m.value)}
               className={clsx(
                 'flex h-full flex-1 items-center justify-center gap-2 rounded-[11px] text-[15px] font-semibold transition-all duration-300',
-                on ? 'mode-glow bg-surface text-ink' : 'text-ink-2 hover:text-ink',
-                on && pending && 'animate-pulse',
+                chosen ? 'bg-surface text-ink shadow-[0_1px_2px_rgba(0,0,0,0.12)] ring-1 ring-line' : 'text-ink-2 hover:text-ink',
+                glowing && 'mode-glow',
+                glowing && !chosen && 'text-[var(--good-text)]',
+                chosen && pending && 'animate-pulse',
               )}
             >
-              {on && !pending && state && !stale ? <span className="live-dot" aria-hidden /> : null}
+              {glowing ? <span className="live-dot" aria-hidden /> : null}
               {m.label}
             </button>
           );
