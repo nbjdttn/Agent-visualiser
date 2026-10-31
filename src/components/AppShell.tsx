@@ -3,7 +3,7 @@ import { Activity, Cpu, Database, FolderKanban, LayoutDashboard, Palette, Rotate
 import { useId, useState, type ReactNode } from 'react';
 import { compact, usd } from '../lib/format';
 import { href, type Route } from '../lib/router';
-import { PALETTES, THEMES, useData, usePalette, useTheme } from '../lib/store';
+import { COMBOS, PALETTES, THEMES, useData, usePalette, useTheme } from '../lib/store';
 import { Popover } from './Popover';
 import { ProviderDot } from './ui';
 
@@ -201,55 +201,47 @@ function PickerRow({ selected, onClick, swatch, children }: { selected: boolean;
   );
 }
 
-/** Appearance (backgrounds) and Colours (chart palette), in one menu. */
+/** One list of themes; each sets the background and the chart colours together. */
 function ThemeToggle() {
   const [pref, setPref] = useTheme();
   const [palette, setPalette] = usePalette();
   return (
     <Popover
-      label="Appearance"
+      label="Theme"
       align="right"
-      width={270}
+      width={250}
       trigger={() => (
         <span className="inline-flex h-11 w-11 items-center justify-center rounded-[13px] border border-line bg-surface text-ink-2 hover:text-ink lg:h-9 lg:w-9 lg:rounded-[10px]">
           <Palette size={21} aria-hidden />
         </span>
       )}
     >
-      {() => (
-        <div role="menu" aria-label="Appearance" className="scrollbar-thin flex max-h-[70vh] flex-col gap-0.5 overflow-y-auto">
-          <div className="px-2.5 pb-1 pt-1 text-[12px] font-semibold uppercase tracking-[0.06em] text-muted">Appearance</div>
-          {THEMES.map((t) => (
-            <PickerRow
-              key={t.id}
-              selected={pref === t.id}
-              onClick={() => setPref(t.id)}
-              swatch={
-                <span aria-hidden className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full border border-line-strong" style={{ background: t.page }}>
-                  <span className="absolute bottom-1 right-1 h-2.5 w-2.5 rounded-full" style={{ background: t.accent }} />
-                </span>
-              }
-            >
-              {t.label}
-            </PickerRow>
-          ))}
-          <div className="mt-2 border-t border-line px-2.5 pb-1 pt-3 text-[12px] font-semibold uppercase tracking-[0.06em] text-muted">Colours</div>
-          {PALETTES.map((p) => (
-            <PickerRow
-              key={p.id}
-              selected={palette === p.id}
-              onClick={() => setPalette(p.id)}
-              swatch={
-                <span aria-hidden className="flex h-7 w-7 shrink-0 flex-wrap overflow-hidden rounded-full border border-line-strong">
-                  {p.swatch.map((c) => (
-                    <span key={c} className="h-1/2 w-1/2" style={{ background: c }} />
-                  ))}
-                </span>
-              }
-            >
-              {p.label}
-            </PickerRow>
-          ))}
+      {(close) => (
+        <div role="menu" aria-label="Theme" className="flex flex-col gap-0.5">
+          <div className="px-2.5 pb-1 pt-1 text-[12px] font-semibold uppercase tracking-[0.06em] text-muted">Theme</div>
+          {COMBOS.map((c) => {
+            const bg = THEMES.find((t) => t.id === c.theme)!.page;
+            const colours = PALETTES.find((p) => p.id === c.palette)!.swatch;
+            return (
+              <PickerRow
+                key={c.id}
+                selected={pref === c.theme && palette === c.palette}
+                onClick={() => {
+                  setPref(c.theme);
+                  setPalette(c.palette);
+                  close();
+                }}
+                swatch={
+                  <span aria-hidden className="relative h-8 w-8 shrink-0 overflow-hidden rounded-full border border-line-strong" style={{ background: bg }}>
+                    <span className="absolute left-[7px] top-[9px] h-3 w-3 rounded-full" style={{ background: colours[0] }} />
+                    <span className="absolute bottom-[7px] right-[7px] h-3 w-3 rounded-full" style={{ background: colours[1] }} />
+                  </span>
+                }
+              >
+                {c.label}
+              </PickerRow>
+            );
+          })}
         </div>
       )}
     </Popover>

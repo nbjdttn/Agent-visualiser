@@ -528,6 +528,16 @@ export const PALETTES: { id: PaletteId; label: string; swatch: string[] }[] = [
   { id: 'berry', label: 'Berry', swatch: ['#e87ba4', '#6250d6', '#eb6834', '#2a78d6'] },
 ];
 
+/** Ready-made themes: each pairs a background with the colours that suit it best. */
+export const COMBOS: { id: string; label: string; theme: ThemePref; palette: PaletteId }[] = [
+  { id: 'auto', label: 'Match iPhone', theme: 'system', palette: 'classic' },
+  { id: 'light', label: 'Light', theme: 'light', palette: 'classic' },
+  { id: 'dark', label: 'Dark', theme: 'dark', palette: 'classic' },
+  { id: 'midnight', label: 'Midnight', theme: 'midnight', palette: 'berry' },
+  { id: 'ocean', label: 'Ocean', theme: 'light', palette: 'ocean' },
+  { id: 'sunset', label: 'Sunset', theme: 'paper', palette: 'sunset' },
+];
+
 export function usePalette(): [PaletteId, (p: PaletteId) => void] {
   const [palette, setPalette] = useState<PaletteId>(() => {
     try {
