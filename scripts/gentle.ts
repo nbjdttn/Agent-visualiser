@@ -313,7 +313,11 @@ async function backgroundPriorityWorks(): Promise<boolean> {
 /** pid → whether its environment says an agent started it (cached per command line). */
 const envCache = new Map<number, { command: string; marked: boolean; optOut: boolean }>();
 
-async function scan(): Promise<{ procs: Proc[]; names: Map<number, string>; jobs: Proc[] }> {
+/**
+ * jobs: the agents' busy jobs gentle mode may hold back.
+ * work: all their busy jobs, including ones started with AV_GENTLE=0 (counted, never held).
+ */
+async function scan(): Promise<{ procs: Proc[]; names: Map<number, string>; jobs: Proc[]; work: Proc[] }> {
   const [ps, ucomm] = await Promise.all([exec.run('ps', ['-axww', '-o', 'pid=,ppid=,uid=,pcpu=,command=']), exec.run('ps', ['-ax', '-o', 'pid=,ucomm='])]);
   const procs = parsePs(ps.out);
   const names = parseNames(ucomm.out);
@@ -336,8 +340,9 @@ async function scan(): Promise<{ procs: Proc[]; names: Map<number, string>; jobs
   for (const pid of envCache.keys()) if (!alive.has(pid)) envCache.delete(pid);
   const marked = new Set([...envCache.entries()].filter(([, v]) => v.marked).map(([pid]) => pid));
   const optOut = new Set([...envCache.entries()].filter(([, v]) => v.optOut).map(([pid]) => pid));
-  const jobs = agentJobs(procs, names, marked, { uid, self: process.pid, minCpu: MIN_CPU }).filter((p) => !optOut.has(p.pid));
-  return { procs, names, jobs };
+  const work = agentJobs(procs, names, marked, { uid, self: process.pid, minCpu: MIN_CPU });
+  const jobs = work.filter((p) => !optOut.has(p.pid));
+  return { procs, names, jobs, work };
 }
 
 // ---------------------------------------------------------------------------
@@ -642,7 +647,7 @@ async function run() {
       if (presence.here) {
         if (now - lastScan >= SCAN_MS) {
           lastScan = now;
-          const { procs, names, jobs } = await scan();
+          const { procs, names, jobs, work } = await scan();
           holder.prune(new Set(procs.map((p) => p.pid)));
           let added = false;
           for (const j of jobs) {
@@ -651,7 +656,7 @@ async function run() {
           }
           if (added) writeState(); // recorded before any of them is ever stopped, for recovery
           // Everything held plus anything busy, even if sharing has made a job look quiet.
-          const jobPids = new Set(jobs.map((j) => j.pid));
+          const jobPids = new Set(work.map((j) => j.pid));
           const tracked = procs.filter((p) => jobPids.has(p.pid) || holder.held.has(p.pid));
           agentsCores = await coresUsed(tracked);
           if (cfg.how !== 'pause') {
@@ -668,7 +673,7 @@ async function run() {
         demand = undefined;
         if (now - lastScan >= AWAY_SCAN_MS) {
           lastScan = now;
-          agentsCores = await coresUsed((await scan()).jobs);
+          agentsCores = await coresUsed((await scan()).work);
         }
       }
 

@@ -142,16 +142,10 @@ export function MacCard() {
       </div>
 
       {state && !stale && (state.cpu || state.gpu !== undefined || state.mem) ? (
-        <div className="mt-3 grid grid-cols-3 gap-1">
+        <div className="mt-3 grid grid-cols-3 items-start gap-1">
           {state.cpu ? <CpuGauge cpu={state.cpu} gentle={live === 'gentle'} /> : <span />}
           {state.gpu !== undefined ? (
-            <Ring
-              label="GPU"
-              value={`${Math.round(state.gpu)}`}
-              unit="%"
-              parts={[{ to: state.gpu / 100, color: 'var(--s3)' }]}
-              title={`GPU ${Math.round(state.gpu)}% busy`}
-            />
+            <Ring label="GPU" value={`${Math.round(state.gpu)}`} unit="%" parts={[{ to: state.gpu / 100, colors: RING.gpu }]} title={`GPU ${Math.round(state.gpu)}% busy`} />
           ) : (
             <span />
           )}
@@ -207,13 +201,22 @@ function arc(cx: number, cy: number, r: number, from: number, to: number): strin
   return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 ${to - from > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
 }
 
+/** Each ring's own gradient (light end first) and glow. */
+const RING = {
+  cpu: ['#67e8f9', '#3b82f6'],
+  other: ['#c7d2fe', '#6366f1'],
+  gpu: ['#f0abfc', '#a855f7'],
+  mem: ['#6ee7b7', '#10b981'],
+  memWarn: ['#fde68a', '#f59e0b'],
+  memCritical: ['#fca5a5', '#ef4444'],
+} as const satisfies Record<string, readonly [string, string]>;
+
 /**
- * A glowing ring: a softly tinted track, the value as a gradient arc that
- * glows in its own colour with a bright cap at the tip, the number in the
- * middle and the label in the opening at the bottom. Parts follow each other
- * round the ring; the first is the main one (it glows); a later part is drawn
- * quietly. `band` is a thin glowing green arc outside the ring (the cores kept
- * free for you).
+ * A glowing ring: a softly tinted track, the value as gradient arcs that glow
+ * in their own colours with a bright tip, the number in the middle and the
+ * label in the opening at the bottom. Several parts share the ring one after
+ * another (`to` is where each ends). `band` is a thin glowing green arc
+ * outside the ring (the cores kept free for you).
  */
 function Ring({
   label,
@@ -226,7 +229,7 @@ function Ring({
   label: string;
   value: string;
   unit?: string;
-  parts: { to: number; color: string; quiet?: boolean }[];
+  parts: { to: number; colors: readonly [string, string] }[];
   band?: { from: number; to: number };
   title: string;
 }) {
@@ -238,51 +241,50 @@ function Ring({
   const cx = W / 2;
   const cy = 50;
   const track = arc(cx, cy, r, START, START + SWEEP);
-  const main = parts[0]?.color ?? 'var(--s1)';
-  // Each part ends where it says and starts where the one before ended; later parts are drawn
-  // underneath from the start of the ring, so only the stretch beyond the earlier part shows.
-  let from = 0;
-  const segs = parts.map((p) => {
-    const seg = { ...p, from, to: Math.max(from, clamp01(p.to)) };
-    from = seg.to;
+  let at = 0;
+  const segs = parts.map((p, i) => {
+    const seg = { i, from: at, to: Math.max(at, clamp01(p.to)), colors: p.colors };
+    at = seg.to;
     return seg;
   });
-  const lead = segs[0];
-  const tip = lead && lead.to - lead.from > 0.01 ? polar(cx, cy, r, START + SWEEP * lead.to) : undefined;
+  const end = at;
+  const tip = end > 0.01 ? polar(cx, cy, r, START + SWEEP * end) : undefined;
+  const trackColor = parts[0]?.colors[1] ?? '#3b82f6';
   return (
     <div className="flex justify-center" role="img" aria-label={title} title={title}>
       <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="overflow-visible" aria-hidden>
         <defs>
-          <linearGradient id={`${uid}g`} x1="0" y1="1" x2="1" y2="0">
-            <stop offset="0" stopColor={`color-mix(in srgb, ${main} 70%, white)`} />
-            <stop offset="1" stopColor={main} />
-          </linearGradient>
+          {segs.map((g) => (
+            <linearGradient key={g.i} id={`${uid}g${g.i}`} gradientUnits="userSpaceOnUse" x1={cx - r} y1={cy} x2={cx + r} y2={cy}>
+              <stop offset="0" stopColor={g.colors[0]} />
+              <stop offset="1" stopColor={g.colors[1]} />
+            </linearGradient>
+          ))}
         </defs>
-        <path d={track} fill="none" style={{ stroke: `color-mix(in srgb, ${main} 14%, transparent)` }} strokeWidth={sw} strokeLinecap="round" />
+        <path d={track} fill="none" style={{ stroke: `color-mix(in srgb, ${trackColor} 16%, transparent)` }} strokeWidth={sw} strokeLinecap="round" />
+        {/* Later parts first, so each part's rounded end sits on top of the next one's start. */}
         {segs
           .slice()
           .reverse()
-          .filter((p) => p.to - p.from > 0.004)
-          .map((p, i) => {
-            const isLead = p === lead;
-            return (
-              <path
-                key={i}
-                d={track}
-                pathLength={100}
-                fill="none"
-                strokeWidth={sw}
-                strokeLinecap="round"
-                strokeDasharray={`${(p.to * 100).toFixed(2)} 200`}
-                style={{
-                  stroke: isLead ? `url(#${uid}g)` : `color-mix(in srgb, ${p.color} 55%, transparent)`,
-                  filter: isLead ? `drop-shadow(0 0 5px color-mix(in srgb, ${p.color} 60%, transparent))` : undefined,
-                  transition: 'stroke-dasharray 800ms cubic-bezier(0.2, 0.7, 0.2, 1)',
-                }}
-              />
-            );
-          })}
-        {tip ? <circle cx={tip[0]} cy={tip[1]} r={2.2} style={{ fill: 'white', opacity: 0.9 }} /> : null}
+          .filter((g) => g.to - g.from > 0.004)
+          .map((g) => (
+            <path
+              key={g.i}
+              d={track}
+              pathLength={100}
+              fill="none"
+              strokeWidth={sw}
+              strokeLinecap="round"
+              strokeDasharray={`${((g.to - g.from) * 100).toFixed(2)} 200`}
+              strokeDashoffset={(-g.from * 100).toFixed(2)}
+              style={{
+                stroke: `url(#${uid}g${g.i})`,
+                filter: `drop-shadow(0 0 6px color-mix(in srgb, ${g.colors[1]} 65%, transparent))`,
+                transition: 'stroke-dasharray 800ms cubic-bezier(0.2, 0.7, 0.2, 1), stroke-dashoffset 800ms cubic-bezier(0.2, 0.7, 0.2, 1)',
+              }}
+            />
+          ))}
+        {tip ? <circle cx={tip[0]} cy={tip[1]} r={2.2} style={{ fill: 'white', opacity: 0.92 }} /> : null}
         {band && band.to - band.from > 0.004 ? (
           <path d={arc(cx, cy, r + sw / 2 + 4.5, START + SWEEP * clamp01(band.from), START + SWEEP * clamp01(band.to))} fill="none" className="gauge-band" strokeWidth={3.5} strokeLinecap="round" />
         ) : null}
@@ -298,38 +300,54 @@ function Ring({
   );
 }
 
-/** CPU: the agents glow blue, everything else follows quietly; the cores kept free for you glow green outside the ring. */
+/**
+ * CPU: the agents' jobs (cyan to blue) and everything else (indigo) share the
+ * ring; the cores kept free for you glow green outside it.
+ */
 function CpuGauge({ cpu, gentle }: { cpu: CpuInfo; gentle: boolean }) {
   const cores = Math.max(1, cpu.cores);
   const busy = Math.max(cpu.busy ?? cpu.agents, cpu.agents);
   const free = gentle ? Math.max(0, Math.min(cores, cpu.free)) : 0;
+  const other = Math.max(0, busy - cpu.agents);
   return (
-    <Ring
-      label="CPU"
-      value={busy.toFixed(1)}
-      unit={`/${cores}`}
-      parts={[
-        { to: cpu.agents / cores, color: 'var(--s1)' },
-        { to: busy / cores, color: 'var(--muted)', quiet: true },
-      ]}
-      band={free ? { from: 1 - free / cores, to: 1 } : undefined}
-      title={`CPU: ${busy.toFixed(1)} of ${cores} cores busy, agents ${cpu.agents.toFixed(1)}${free ? `; ${free} kept free for you` : ''}`}
-    />
+    <div className="flex flex-col items-center">
+      <Ring
+        label="CPU"
+        value={busy.toFixed(1)}
+        unit={`/${cores}`}
+        parts={[
+          { to: cpu.agents / cores, colors: RING.cpu },
+          { to: busy / cores, colors: RING.other },
+        ]}
+        band={free ? { from: 1 - free / cores, to: 1 } : undefined}
+        title={`CPU: ${busy.toFixed(1)} of ${cores} cores busy: agents ${cpu.agents.toFixed(1)}, other ${other.toFixed(1)}${free ? `; ${free} kept free for you` : ''}`}
+      />
+      <div className="tnum -mt-1 flex flex-col items-start gap-0.5 whitespace-nowrap text-[11.5px] font-medium leading-4 text-muted">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full" style={{ background: `linear-gradient(135deg, ${RING.cpu[0]}, ${RING.cpu[1]})` }} aria-hidden />
+          Agents <b className="font-semibold text-ink-2">{cpu.agents.toFixed(1)}</b>
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full" style={{ background: `linear-gradient(135deg, ${RING.other[0]}, ${RING.other[1]})` }} aria-hidden />
+          Other <b className="font-semibold text-ink-2">{other.toFixed(1)}</b>
+        </span>
+      </div>
+    </div>
   );
 }
 
-/** Memory in use, coloured by macOS memory pressure (green, amber, red). */
+/** Memory in use; amber or red when macOS reports memory pressure. */
 function MemGauge({ mem }: { mem: MemInfo }) {
   const gb = (b: number) => (b / 1024 ** 3).toFixed(b >= 10 * 1024 ** 3 ? 0 : 1);
   const used = Math.min(mem.used, mem.total);
-  const color = mem.pressure === 'critical' ? 'var(--critical)' : mem.pressure === 'warn' ? 'var(--warning)' : 'var(--good)';
+  const colors = mem.pressure === 'critical' ? RING.memCritical : mem.pressure === 'warn' ? RING.memWarn : RING.mem;
   const swap = mem.swap && mem.swap >= 256 * 1024 ** 2 ? `, ${gb(mem.swap)} GB swapped` : '';
   return (
     <Ring
       label="Memory"
       value={gb(used)}
       unit={`/${gb(mem.total)}G`}
-      parts={[{ to: used / Math.max(1, mem.total), color }]}
+      parts={[{ to: used / Math.max(1, mem.total), colors }]}
       title={`Memory: ${gb(used)} of ${gb(mem.total)} GB${mem.pressure ? `, pressure ${mem.pressure}` : ''}${swap}`}
     />
   );
