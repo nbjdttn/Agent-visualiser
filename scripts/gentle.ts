@@ -211,7 +211,7 @@ async function readIdleSeconds(): Promise<number | undefined> {
   return undefined;
 }
 
-/** Apps showing a video or call: they keep the screen awake and sound is playing. */
+/** Whether someone is connected from another computer (Chrome Remote Desktop or Screen Sharing). */
 async function readRemote(): Promise<boolean> {
   const r = await exec.run('pmset', ['-g', 'assertions']);
   return r.ok && parseRemoteSession(r.out);
