@@ -73,7 +73,7 @@ export interface StateMessage {
   mode: GentleMode;
   /** Someone is at the Mac (or work mode says so). */
   here: boolean;
-  /** Why: input, media (a video or call keeps the screen awake), work, full, away. */
+  /** Why: input, remote (connected from another computer), work, full, away. */
   reason: string;
   /** Agent jobs currently held back. */
   held: number;

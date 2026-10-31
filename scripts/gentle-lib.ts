@@ -32,7 +32,7 @@ export interface Held {
 
 export interface Presence {
   here: boolean;
-  /** input, media, work, full, away, unknown */
+  /** input, remote, work, full, away, unknown */
   reason: string;
 }
 
@@ -42,26 +42,17 @@ export function parseIdleSeconds(ioreg: string): number | undefined {
   return m ? Number(m[1]) / 1e9 : undefined;
 }
 
-/** Keep-awake tools hold the screen on without anyone watching it. */
-const KEEP_AWAKE = /caffeinate|amphetamine|keepingyouawake|lungo|theine|caffeine|jolt|nosleep|insomnia/i;
+/** Remote-desktop hosts (Chrome Remote Desktop, Screen Sharing) hold the screen on while a session is connected. */
+const REMOTE_HOST = /remoting_me2me_host|screensharingd/i;
 
-/** Apps keeping the screen awake for a person: a video, a call, a presentation. */
-export function parseDisplayAssertions(pmset: string): { pid: number; name: string }[] {
-  const out: { pid: number; name: string }[] = [];
-  for (const line of pmset.split('\n')) {
-    const m = /^\s*pid (\d+)\((.*?)\):.*\b(PreventUserIdleDisplaySleep|NoDisplaySleepAssertion)\b/.exec(line);
-    if (m && !KEEP_AWAKE.test(m[2])) out.push({ pid: Number(m[1]), name: m[2] });
-  }
-  return out;
-}
+const DISPLAY_ASSERTION = /^\s*pid (\d+)\((.*?)\):.*\b(PreventUserIdleDisplaySleep|NoDisplaySleepAssertion)\b/;
 
-/**
- * Whether sound is playing: coreaudiod keeps the Mac awake while any audio
- * device is in use. A real video or call has sound; a muted clip looping in a
- * background tab doesn't, and shouldn't make the Mac think you're there.
- */
-export function parseAudioPlaying(pmset: string): boolean {
-  return pmset.split('\n').some((l) => /pid \d+\(coreaudiod\):.*PreventUserIdleSystemSleep/.test(l));
+/** Whether someone is connected from another computer, which counts as being at the Mac. */
+export function parseRemoteSession(pmset: string): boolean {
+  return pmset.split('\n').some((line) => {
+    const m = DISPLAY_ASSERTION.exec(line);
+    return !!m && REMOTE_HOST.test(m[2]);
+  });
 }
 
 /** GPU utilisation from `ioreg -r -d 1 -w 0 -c IOAccelerator` (the busiest GPU), percent. */
@@ -207,15 +198,19 @@ export function agentJobs(procs: Proc[], names: Map<number, string>, marked: Set
   );
 }
 
-/** How long a video or call (screen kept awake, sound playing) counts as "here" without any input. */
-export const MEDIA_MAX_SEC = 15 * 60;
+/**
+ * How long a connected remote session counts as "here" without any input. A
+ * video or call on screen doesn't count: only you at the keyboard, here or
+ * from another computer.
+ */
+export const REMOTE_MAX_SEC = 10 * 60;
 
-export function decidePresence(o: { idleSec?: number; media: boolean; mode: GentleMode; awayAfterSec: number }): Presence {
+export function decidePresence(o: { idleSec?: number; remote?: boolean; mode: GentleMode; awayAfterSec: number }): Presence {
   if (o.mode === 'work') return { here: true, reason: 'work' };
   if (o.mode === 'full') return { here: false, reason: 'full' };
   if (o.idleSec === undefined) return { here: false, reason: 'unknown' };
   if (o.idleSec < o.awayAfterSec) return { here: true, reason: 'input' };
-  if (o.media && o.idleSec < MEDIA_MAX_SEC) return { here: true, reason: 'media' };
+  if (o.remote && o.idleSec < REMOTE_MAX_SEC) return { here: true, reason: 'remote' };
   return { here: false, reason: 'away' };
 }
 

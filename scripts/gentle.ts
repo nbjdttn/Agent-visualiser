@@ -54,9 +54,8 @@ import {
   parseSwap,
   parseVmStat,
   type CpuTimes,
-  parseDisplayAssertions,
+  parseRemoteSession,
   parseIdleSeconds,
-  parseAudioPlaying,
   isStopped,
   parseNames,
   parsePs,
@@ -81,7 +80,7 @@ const LOG = path.join(os.homedir(), 'Library', 'Logs', 'agent-visualiser-gentle.
 const TICK_MS = 2_000;
 const SCAN_MS = 3_000;
 const AWAY_SCAN_MS = 15_000;
-const MEDIA_MS = 10_000;
+const REMOTE_MS = 10_000;
 const SYSTEM_MS = 10_000;
 /** ntfy.sh allows a few hundred messages a day: a status at most every 15 s, a heartbeat hourly. */
 const PUBLISH_GAP_MS = 15_000;
@@ -213,10 +212,9 @@ async function readIdleSeconds(): Promise<number | undefined> {
 }
 
 /** Apps showing a video or call: they keep the screen awake and sound is playing. */
-async function readMedia(): Promise<string[]> {
+async function readRemote(): Promise<boolean> {
   const r = await exec.run('pmset', ['-g', 'assertions']);
-  if (!r.ok || !parseAudioPlaying(r.out)) return [];
-  return [...new Set(parseDisplayAssertions(r.out).map((a) => a.name))];
+  return r.ok && parseRemoteSession(r.out);
 }
 
 /**
@@ -496,8 +494,8 @@ function describe(p: Presence, held: Map<number, Held>, how: GentleHow, freeCore
       return 'Full speed: agent jobs have the whole Mac.';
     case 'input':
       return `You're at the Mac: ${jobs}.`;
-    case 'media':
-      return `A video or call is on: ${jobs}.`;
+    case 'remote':
+      return `You're connected from another computer: ${jobs}.`;
     case 'unknown':
       return "Can't read the keyboard and mouse idle time; leaving agent jobs alone.";
     default:
@@ -536,7 +534,7 @@ async function run() {
   const holder = new Holder(exec, log, Date.now, background);
   let presence: Presence = { here: false, reason: 'away' };
   let idleSec: number | undefined;
-  let media: string[] = [];
+  let remote = false;
   let agentsCores = 0;
   let busyCores: number | undefined;
   let gpu: number | undefined;
@@ -544,7 +542,7 @@ async function run() {
   let times = cpuTimes();
   let lastSystem = 0;
   let demand: number | undefined;
-  let lastMedia = 0;
+  let lastRemote = 0;
   let lastScan = 0;
   let lastSummary = '';
   let lastHeartbeat = 0;
@@ -631,9 +629,9 @@ async function run() {
       cfg = loadConfig(); // picks up `npm run gentle -- work|auto|full` and phone commands
       const now = Date.now();
       idleSec = await readIdleSeconds();
-      if (now - lastMedia >= MEDIA_MS) {
-        lastMedia = now;
-        media = await readMedia();
+      if (now - lastRemote >= REMOTE_MS) {
+        lastRemote = now;
+        remote = await readRemote();
       }
       if (now - lastSystem >= SYSTEM_MS) {
         lastSystem = now;
@@ -642,7 +640,7 @@ async function run() {
         times = t;
         ({ gpu, mem } = await readSystem());
       }
-      presence = decidePresence({ idleSec, media: media.length > 0, mode: cfg.mode, awayAfterSec: cfg.awayAfterSec });
+      presence = decidePresence({ idleSec, remote, mode: cfg.mode, awayAfterSec: cfg.awayAfterSec });
 
       if (presence.here) {
         if (now - lastScan >= SCAN_MS) {
@@ -677,7 +675,7 @@ async function run() {
         }
       }
 
-      const summary = describe(presence, holder.held, cfg.how, cfg.freeCores) + (presence.reason === 'media' && media.length ? ` (${media.slice(0, 2).join(', ')})` : '');
+      const summary = describe(presence, holder.held, cfg.how, cfg.freeCores);
       if (summary !== lastSummary) {
         lastSummary = summary;
         log(summary);
