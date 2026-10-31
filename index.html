@@ -16,6 +16,12 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="./icons/app-icon.svg" />
     <title>Agent Visualiser</title>
+    <style>
+      /* Shown only on a phone turned sideways (see styles.css); hidden even before the app's CSS loads. */
+      .rotate-note {
+        display: none;
+      }
+    </style>
     <script>
       // Apply the saved theme before first paint so there is no flash.
       try {
@@ -31,5 +37,23 @@
       Turn your phone upright
     </div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // While an update is published, GitHub can briefly serve this page unbuilt
+      // (the line above then points at source code). If so, fetch the built page.
+      (function () {
+        if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) return;
+        if (!document.querySelector('script[src="/src/main.tsx"]')) return;
+        var tries = 0;
+        try {
+          tries = Number(sessionStorage.getItem('av.fresh') || 0);
+          sessionStorage.setItem('av.fresh', String(tries + 1));
+        } catch (e) {}
+        if (tries < 20) {
+          setTimeout(function () {
+            location.replace(location.pathname + '?fresh=' + Date.now() + location.hash);
+          }, 2500);
+        }
+      })();
+    </script>
   </body>
 </html>

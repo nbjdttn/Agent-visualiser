@@ -1,7 +1,7 @@
 // Offline support for the phone app: the page itself is fetched fresh when
 // online (so updates arrive) and served from cache when offline; built assets
 // have content hashes in their names, so they are cached once and reused.
-const CACHE = 'agent-visualiser-v2';
+const CACHE = 'agent-visualiser-v3';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icons/app-icon-180.png'];
 
 self.addEventListener('install', (event) => {
@@ -25,7 +25,8 @@ self.addEventListener('fetch', (event) => {
 
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
+      // Always ask GitHub whether the page changed, rather than trusting a copy in the browser cache.
+      fetch(new Request(request.url, { cache: 'no-cache', credentials: 'same-origin' }))
         .then((response) => {
           const copy = response.clone();
           caches.open(CACHE).then((cache) => cache.put('./index.html', copy));
