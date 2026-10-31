@@ -41,6 +41,7 @@ Listed by owning process:
    pid 412(coreaudiod): [0x00001a3b000193d1] 00:05:23 PreventUserIdleSystemSleep named: "com.apple.audio.context"
    pid 1234(Google Chrome): [0x0000c4d900018a7f] 00:02:10 PreventUserIdleDisplaySleep named: "Video Wake Lock"
    pid 5678(caffeinate): [0x0000c4d900018a80] 01:00:00 PreventUserIdleDisplaySleep named: "caffeinate command-line tool"
+   pid 4469(remoting_me2me_host): [0x00080b6400058248] 00:01:25 NoDisplaySleepAssertion named: "Remoting session is active"
    pid 344(WindowServer): [0x0000a2eb0001867e] 00:00:00 UserIsActive named: "com.apple.iohideventsystem.queue.tickle"
 `;
 
@@ -50,7 +51,7 @@ describe('reading the Mac', () => {
     expect(parseIdleSeconds('nothing here')).toBeUndefined();
   });
 
-  it('counts videos and calls, not keep-awake tools or audio', () => {
+  it('counts videos and calls, not keep-awake tools, remote-desktop sessions or audio', () => {
     expect(parseDisplayAssertions(PMSET)).toEqual([{ pid: 1234, name: 'Google Chrome' }]);
   });
 
@@ -114,7 +115,8 @@ describe('reading the Mac', () => {
     const base = { media: false, mode: 'auto' as const, awayAfterSec: 120 };
     expect(decidePresence({ ...base, idleSec: 3 })).toEqual({ here: true, reason: 'input' });
     expect(decidePresence({ ...base, idleSec: 600 })).toEqual({ here: false, reason: 'away' });
-    expect(decidePresence({ ...base, idleSec: 600, media: true })).toEqual({ here: true, reason: 'media' });
+    expect(decidePresence({ ...base, idleSec: 590, media: true })).toEqual({ here: true, reason: 'media' });
+    expect(decidePresence({ ...base, idleSec: 610, media: true })).toEqual({ here: false, reason: 'away' }); // 10 min at most
     expect(decidePresence({ ...base, idleSec: 3 * 3600, media: true })).toEqual({ here: false, reason: 'away' });
     expect(decidePresence({ ...base, idleSec: undefined })).toEqual({ here: false, reason: 'unknown' });
     expect(decidePresence({ ...base, idleSec: 9999, mode: 'work' })).toEqual({ here: true, reason: 'work' });

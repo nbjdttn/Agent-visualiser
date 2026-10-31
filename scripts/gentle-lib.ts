@@ -42,8 +42,12 @@ export function parseIdleSeconds(ioreg: string): number | undefined {
   return m ? Number(m[1]) / 1e9 : undefined;
 }
 
-/** Keep-awake tools hold the screen on without anyone watching it. */
-const KEEP_AWAKE = /caffeinate|amphetamine|keepingyouawake|lungo|theine|caffeine|jolt|nosleep|insomnia/i;
+/**
+ * Keep-awake tools hold the screen on without anyone watching it, and so do
+ * remote-desktop hosts for as long as a session stays connected (a remote
+ * user's keys and clicks already count as input).
+ */
+const KEEP_AWAKE = /caffeinate|amphetamine|keepingyouawake|lungo|theine|caffeine|jolt|nosleep|insomnia|remoting_me2me_host|screensharingd/i;
 
 /** Apps keeping the screen awake for a person: a video, a call, a presentation. */
 export function parseDisplayAssertions(pmset: string): { pid: number; name: string }[] {
@@ -208,7 +212,7 @@ export function agentJobs(procs: Proc[], names: Map<number, string>, marked: Set
 }
 
 /** How long a video or call (screen kept awake, sound playing) counts as "here" without any input. */
-export const MEDIA_MAX_SEC = 15 * 60;
+export const MEDIA_MAX_SEC = 10 * 60;
 
 export function decidePresence(o: { idleSec?: number; media: boolean; mode: GentleMode; awayAfterSec: number }): Presence {
   if (o.mode === 'work') return { here: true, reason: 'work' };

@@ -106,7 +106,8 @@ for your registered devices; turning them off on the phone deletes its key and w
 Agents running big jobs locally (simulations, builds) can make the Mac laggy just when you sit down to use it. Gentle
 mode is a small background helper that watches for you:
 
-- **You're at the Mac** (keyboard or mouse in the last 2 minutes, or a call or video with sound on screen): busy jobs
+- **You're at the Mac** (keyboard or mouse in the last 2 minutes, or a call or video with sound on screen for up to 10
+  minutes after that; a connected Remote Desktop or Screen Sharing session doesn't count by itself): busy jobs
   started by Claude Code or Codex share the Mac so that **2 cores stay free for you**. They keep their priority and run
   part of every 50 ms, just enough less that together they use at most all-but-two cores. If they're using less than
   that anyway, nothing changes.
