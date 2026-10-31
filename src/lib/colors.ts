@@ -34,8 +34,8 @@ export const TOKEN_TYPES = [
 /** Sequential blue ramp for heatmaps: index 0 is "no activity". */
 export const SEQ = ['var(--seq-0)', 'var(--seq-1)', 'var(--seq-2)', 'var(--seq-3)', 'var(--seq-4)', 'var(--seq-5)', 'var(--seq-6)'];
 
-/** Text that sits inside a filled mark: the fill's own ink (white, or near-black on yellow), per palette. */
+/** Text that sits inside a filled mark: the fill's own ink (white, near-black on yellow, soft dark on Other), per palette. */
 export function inkOn(color: string): string {
-  const m = /^var\(--(anthropic|openai|s[1-6])\)$/.exec(color);
+  const m = /^var\(--(anthropic|openai|s[1-6]|other)\)$/.exec(color);
   return m ? `var(--ink-on-${m[1]})` : '#ffffff';
 }

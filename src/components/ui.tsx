@@ -5,9 +5,14 @@ import { PROVIDER_LABEL, SOURCE_META, type Provider, type SourceId } from '../..
 import { PROVIDER_COLOR } from '../lib/colors';
 import { signedPct } from '../lib/format';
 
-export function Card({ className, children, ...rest }: { className?: string; children: ReactNode } & React.HTMLAttributes<HTMLDivElement>) {
+export function Card({
+  className,
+  children,
+  ref,
+  ...rest
+}: { className?: string; children: ReactNode; ref?: React.Ref<HTMLDivElement> } & React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={clsx('card', className)} {...rest}>
+    <div ref={ref} className={clsx('card', className)} {...rest}>
       {children}
     </div>
   );

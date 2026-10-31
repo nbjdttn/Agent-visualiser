@@ -1,5 +1,5 @@
 import { ChevronDown, Search } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { PROVIDER_LABEL, type Provider, type SourceId } from '../../shared/types';
 import { OTHER_COLOR, PROVIDER_COLOR, slotColor } from '../lib/colors';
 import { applyFilters, filterSessions, groupBy, isUnknownProject, rangeRanks, sparkValues, type Data } from '../lib/data';
@@ -11,10 +11,12 @@ import { projectSegments, projectSubtitle, SimpleTable } from '../components/car
 import { BarList } from '../components/charts/BarList';
 import { SegmentedBar } from '../components/charts/SegmentedBar';
 import { Sparkline } from '../components/charts/Sparkline';
-import { Treemap } from '../components/charts/Treemap';
+import { Treemap, type TreemapProject } from '../components/charts/Treemap';
 import { DataTable, type Column } from '../components/DataTable';
 import { UsageOverTime } from '../components/UsageOverTime';
 import { Card, CardHeader, SourceBadge } from '../components/ui';
+
+const OTHER_KEY = '__other';
 
 interface Row {
   idx: number;
@@ -87,20 +89,24 @@ export function ProjectsPage({ data }: { data: Data }) {
     const r = ranks.get(idx) ?? Infinity;
     return r < 6 ? slotColor(r) : OTHER_COLOR;
   };
-  const treemapProjects = useMemo(
-    () =>
-      [...rows]
-        .sort((a, b) => b.tokens - a.tokens)
-        .slice(0, 40)
-        .map((r) => ({
-          key: r.key,
-          name: r.name,
-          path: r.path,
-          color: colorOf(r.idx),
-          parts: (['anthropic', 'openai'] as Provider[]).map((p) => ({ provider: p, value: r.split[p] })),
-        })),
-    [rows, ranks],
-  );
+  // The six biggest projects keep their colours; everything else shares one quiet tile.
+  const { named, treemapProjects } = useMemo(() => {
+    const sorted = [...rows].sort((a, b) => b.tokens - a.tokens);
+    const named = sorted.filter((r) => colorOf(r.idx) !== OTHER_COLOR).slice(0, 6);
+    const shown = new Set(named.map((r) => r.key));
+    const rest = sorted.filter((r) => !shown.has(r.key));
+    const parts = (list: Row[]) => (['anthropic', 'openai'] as Provider[]).map((p) => ({ provider: p, value: list.reduce((a, r) => a + r.split[p], 0) }));
+    const out: TreemapProject[] = named.map((r) => ({ key: r.key, name: r.name, path: r.path, color: colorOf(r.idx), parts: parts([r]) }));
+    if (rest.length) {
+      out.push({ key: OTHER_KEY, name: rest.length === 1 ? rest[0].name : `${rest.length} more projects`, color: OTHER_COLOR, parts: parts(rest), rest: true });
+    }
+    return { named, treemapProjects: out };
+  }, [rows, ranks]);
+  const allRef = useRef<HTMLDivElement>(null);
+  const openAll = () => {
+    setShowAll(true);
+    requestAnimationFrame(() => allRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
   const total = rows.reduce((s, r) => s + r.tokens, 0);
 
   const columns: Column<Row>[] = [
@@ -170,28 +176,41 @@ export function ProjectsPage({ data }: { data: Data }) {
         )}
       >
         {rows.length ? (
-          <Treemap projects={treemapProjects} height={360} format={compact} onSelect={(key) => navigate({ page: 'project', key })} />
+          <Treemap
+            projects={treemapProjects}
+            height={360}
+            format={compact}
+            onSelect={(key) => (key === OTHER_KEY ? openAll() : navigate({ page: 'project', key }))}
+          />
         ) : (
           <p className="py-16 text-center text-[14px] text-muted">No project activity in this period</p>
         )}
       </ChartCard>
 
-      <ChartCard title="Top projects" refetching={refetching}>
+      <ChartCard
+        title="Top projects"
+        refetching={refetching}
+        actions={
+          rows.length > named.length && (
+            <button type="button" onClick={openAll} className="text-[14px] font-medium text-ink-2 hover:text-ink lg:text-[12px]">
+              All {rows.length} →
+            </button>
+          )
+        }
+      >
         <BarList
-          items={[...rows]
-            .sort((a, b) => b.tokens - a.tokens)
-            .map((r) => ({
-              key: r.key,
-              label: r.name,
-              title: r.path ?? r.name,
-              value: r.tokens,
-              display: compact(r.tokens),
-              secondary: usd(r.cost),
-              color: colorOf(r.idx),
-              icon: <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: colorOf(r.idx) }} aria-hidden />,
-            }))}
+          items={named.map((r) => ({
+            key: r.key,
+            label: r.name,
+            title: r.path ?? r.name,
+            value: r.tokens,
+            display: compact(r.tokens),
+            secondary: usd(r.cost),
+            color: colorOf(r.idx),
+            icon: <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: colorOf(r.idx) }} aria-hidden />,
+          }))}
           onSelect={(key) => navigate({ page: 'project', key })}
-          limit={8}
+          limit={6}
           emptyLabel="No project activity in this period"
         />
       </ChartCard>
@@ -208,7 +227,7 @@ export function ProjectsPage({ data }: { data: Data }) {
         simple
       />
 
-      <Card className={`p-4 sm:p-5 ${refetching ? 'refetching' : ''}`}>
+      <Card ref={allRef} className={`scroll-mt-4 p-4 sm:p-5 ${refetching ? 'refetching' : ''}`}>
         <button type="button" onClick={() => setShowAll((v) => !v)} className="flex w-full items-center justify-between gap-3 text-left" aria-expanded={showAll}>
           <CardHeader title="All projects" subtitle={`${rows.length} in this period`} />
           <ChevronDown size={20} className={`shrink-0 text-ink-2 transition-transform ${showAll ? 'rotate-180' : ''}`} aria-hidden />

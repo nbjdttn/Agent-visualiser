@@ -32,7 +32,9 @@
   --s4: #eda100;
   --s5: #008300;
   --s6: #e34948;
-  --other: #898781;
+  /* "Other" (everything outside the six named colours): a soft neutral that recedes. */
+  --other: #c4c2ba;
+  --ink-on-other: var(--text-2);
   /* Text on a filled mark: white, near-black on yellow in light mode. */
   --ink-on-anthropic: #ffffff;
   --ink-on-openai: #ffffff;
@@ -92,6 +94,7 @@
     --s4: #c98500;
     --s5: #008300;
     --s6: #e66767;
+    --other: #55534f;
 
     --seq-0: #262624;
     --seq-1: #0d366b;
@@ -139,6 +142,7 @@
   --s4: #c98500;
   --s5: #008300;
   --s6: #e66767;
+  --other: #55534f;
 
   --seq-0: #262624;
   --seq-1: #0d366b;
@@ -186,6 +190,7 @@
   --s4: #c98500;
   --s5: #008300;
   --s6: #e66767;
+  --other: #4f4a63;
 
   --seq-0: #1d1a26;
   --seq-1: #2b2459;
@@ -212,6 +217,7 @@
   --surface: #fbf8f3;
   --surface-2: #f2ece2;
   --surface-3: #e9e1d4;
+  --other: #cdc5b8;
   --border: rgba(70, 50, 25, 0.1);
   --border-strong: rgba(70, 50, 25, 0.18);
   --text: #1f1b16;

@@ -341,7 +341,10 @@ export function rangeRanks(data: Data, range: Range, key: 'model' | 'proj'): Map
     const k = key === 'model' ? f.model : f.proj;
     totals.set(k, (totals.get(k) ?? 0) + f.tokens);
   }
-  const sorted = [...totals.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0]);
+  // Unnamed models and folders never get a colour of their own, so they
+  // shouldn't use up one of the six slots either.
+  const unknown = (k: number) => (key === 'model' ? isUnknownModel(data.models[k]) : isUnknownProject(data.projects[k]));
+  const sorted = [...totals.entries()].filter(([k]) => !unknown(k)).sort((a, b) => b[1] - a[1] || a[0] - b[0]);
   const ranks = new Map(sorted.map(([k], i) => [k, i]));
   byData.set(cacheKey, ranks);
   return ranks;
