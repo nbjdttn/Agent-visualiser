@@ -21,3 +21,11 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
 for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
   document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
 }
+
+// No long-press menus on touch screens (the CSS stops iPhone's; this stops the
+// ones other phones open), except where you type or copy the setup code.
+if (window.matchMedia('(pointer: coarse)').matches) {
+  document.addEventListener('contextmenu', (e) => {
+    if (!(e.target instanceof Element && e.target.closest('input, textarea, [contenteditable="true"], .select-all'))) e.preventDefault();
+  });
+}

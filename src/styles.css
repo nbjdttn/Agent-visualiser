@@ -673,6 +673,30 @@ html {
   text-size-adjust: 100%;
 }
 
+/* No long-press on phones: no text selection or magnifier, no link previews,
+   no copy/share menus, no lifting things to drag. Typing fields and the setup
+   code (which you may need to copy) still work as usual. */
+@media (pointer: coarse) {
+  * {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+  input,
+  textarea,
+  [contenteditable='true'],
+  .select-all {
+    -webkit-touch-callout: default;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  .select-all {
+    -webkit-user-select: all;
+    user-select: all;
+  }
+}
+
 /* Portrait only: on a phone turned sideways, ask to turn it back. */
 .rotate-note {
   display: none;
