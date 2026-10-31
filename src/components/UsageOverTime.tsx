@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   autoGranularity,
   buildSeries,
-  METRIC_LABEL,
   type Data,
   type Fact,
   type Granularity,
@@ -75,7 +74,7 @@ export function UsageOverTime({
   return (
     <ChartCard
       title={title}
-      subtitle={subtitle ?? `${METRIC_LABEL[metric]} by ${SPLIT_LABEL[split].toLowerCase()}, per ${gran}`}
+      subtitle={subtitle}
       refetching={refetching}
       actions={
         <>

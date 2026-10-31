@@ -62,6 +62,8 @@ interface MetaRecord {
   waiting: string[];
   /** Whether the usage-data branch exists at all. */
   branch: boolean;
+  /** Whether this phone's key is in the branch's devices folder. */
+  registered?: boolean;
 }
 
 type SyncRecord = DeviceRecord | FileRecord | CloudRecord | MetaRecord;
@@ -167,6 +169,7 @@ async function check(): Promise<boolean> {
     if (!target) throw new Error('Automatic updates work in the published app');
     const index = await fetchJson<SyncIndex>(`${target.base}${INDEX_FILE}?t=${Date.now()}`);
     meta.branch = Boolean(index);
+    meta.registered = Boolean(await fetchJson(`${target.base}${DEVICES_DIR}/${encodeURIComponent(device.kid)}.json?t=${Date.now()}`).catch(() => undefined));
     const waiting: string[] = [];
     let changed = false;
     if (index?.files) {
@@ -248,6 +251,7 @@ export interface SyncView {
   error?: string;
   waiting: string[];
   branch: boolean;
+  registered?: boolean;
   sources: SyncSourceView[];
   limits: ClaudeWindow[];
 }
@@ -329,6 +333,7 @@ export async function loadSynced(): Promise<SyncedData> {
     deviceName: device?.name ?? deviceName(),
     waiting: meta?.waiting ?? [],
     branch: meta?.branch ?? false,
+    registered: meta?.registered,
     lastCheck: meta?.lastCheck,
     error: meta?.error,
     sources: files.map(({ name, kind, label, updatedAt, receivedAt, sessions }) => ({ name, kind, label, updatedAt, receivedAt, sessions })),

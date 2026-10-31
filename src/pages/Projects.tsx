@@ -1,4 +1,4 @@
-import { Search } from 'lucide-react';
+import { ChevronDown, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { PROVIDER_LABEL, type Provider, type SourceId } from '../../shared/types';
 import { PROVIDER_COLOR } from '../lib/colors';
@@ -7,12 +7,13 @@ import { compact, relative, usd } from '../lib/format';
 import { href, navigate } from '../lib/router';
 import { useData, useFilters } from '../lib/store';
 import { ChartCard } from '../components/ChartCard';
-import { projectSegments, projectSubtitle, SimpleTable } from '../components/cards';
+import { projectSegments, projectSubtitle, ProjectsCard, SimpleTable } from '../components/cards';
 import { SegmentedBar } from '../components/charts/SegmentedBar';
 import { Sparkline } from '../components/charts/Sparkline';
 import { Treemap } from '../components/charts/Treemap';
 import { DataTable, type Column } from '../components/DataTable';
-import { Card, CardHeader, Pill, SourceBadge } from '../components/ui';
+import { UsageOverTime } from '../components/UsageOverTime';
+import { Card, CardHeader, SourceBadge } from '../components/ui';
 
 interface Row {
   idx: number;
@@ -34,6 +35,7 @@ export function ProjectsPage({ data }: { data: Data }) {
   const { refetching } = useData();
   const { filters, range } = useFilters();
   const [q, setQ] = useState('');
+  const [showAll, setShowAll] = useState(false);
   const facts = useMemo(() => applyFilters(data, filters, range, { project: false }), [data, filters, range]);
   const sessions = useMemo(() => filterSessions(data, { ...filters, project: null }, range), [data, filters, range]);
 
@@ -151,7 +153,7 @@ export function ProjectsPage({ data }: { data: Data }) {
     <div className="flex flex-col gap-5">
       <ChartCard
         title="Where your tokens go"
-        subtitle={`${rows.length} projects · ${compact(total)} tokens · each block is a project, split by provider`}
+        subtitle={`${rows.length} projects · ${compact(total)} tokens`}
         refetching={refetching}
         actions={
           <div className="flex items-center gap-3 text-[12px] text-ink-2">
@@ -177,38 +179,48 @@ export function ProjectsPage({ data }: { data: Data }) {
         )}
       </ChartCard>
 
+      <UsageOverTime
+        data={data}
+        facts={facts}
+        range={range}
+        title="Projects over time"
+        splits={['project', 'provider']}
+        defaultSplit="project"
+        refetching={refetching}
+        height={220}
+      />
+
+      <ProjectsCard data={data} facts={facts} refetching={refetching} />
+
       <Card className={`p-4 sm:p-5 ${refetching ? 'refetching' : ''}`}>
-        <CardHeader
-          title="All projects"
-          subtitle="Folders and repositories your agents worked in, ChatGPT and Claude projects, and API projects"
-          actions={
-            <label className="relative">
-              <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" aria-hidden />
+        <button type="button" onClick={() => setShowAll((v) => !v)} className="flex w-full items-center justify-between gap-3 text-left" aria-expanded={showAll}>
+          <CardHeader title="All projects" subtitle={`${rows.length} in this period`} />
+          <ChevronDown size={20} className={`shrink-0 text-ink-2 transition-transform ${showAll ? 'rotate-180' : ''}`} aria-hidden />
+        </button>
+        {showAll && (
+          <>
+            <label className="relative mt-3 block">
+              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" aria-hidden />
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Search projects"
-                className="h-8 w-[220px] rounded-[10px] border border-line bg-surface-2 pl-8 pr-3 text-[13px] text-ink placeholder:text-muted"
+                placeholder="Search"
+                className="h-10 w-full rounded-xl border border-line bg-surface-2 pl-9 pr-3 text-[16px] text-ink placeholder:text-muted lg:h-8 lg:w-[260px] lg:text-[13px]"
               />
             </label>
-          }
-        />
-        <div className="-mx-3 mt-3">
-          <DataTable
-            columns={columns}
-            rows={shown}
-            rowKey={(r) => r.key}
-            onRowClick={(r) => navigate({ page: 'project', key: r.key })}
-            initialSort={{ key: 'tokens', dir: 'desc' }}
-            pageSize={25}
-            emptyLabel="No projects match"
-          />
-        </div>
-        <div className="mt-3 flex flex-wrap gap-2 px-1 text-[12px] text-muted">
-          <Pill>Folders come from Claude Code and Codex logs</Pill>
-          {data.projects.some((p) => p.kind === 'repo') && <Pill>Repositories are where Claude Code cloud sessions worked</Pill>}
-          <Pill>ChatGPT projects, custom GPTs and Claude projects come from your chat exports</Pill>
-        </div>
+            <div className="-mx-3 mt-3">
+              <DataTable
+                columns={columns}
+                rows={shown}
+                rowKey={(r) => r.key}
+                onRowClick={(r) => navigate({ page: 'project', key: r.key })}
+                initialSort={{ key: 'tokens', dir: 'desc' }}
+                pageSize={25}
+                emptyLabel="No projects match"
+              />
+            </div>
+          </>
+        )}
       </Card>
     </div>
   );

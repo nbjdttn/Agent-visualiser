@@ -9,7 +9,7 @@ import {
 } from '../../shared/types';
 import { OTHER_COLOR, PROVIDER_COLOR, SOURCE_COLOR, TOKEN_TYPES, slotColor } from './colors';
 import { dayLabel, monthLabel } from './format';
-import { DAY_MS, addMonths, monthStart, weekStart, weekdayMon, yearStart } from './time';
+import { DAY_MS, addMonths, dayIndex, monthStart, weekStart, weekdayMon, yearStart } from './time';
 
 export interface Fact {
   day: number;
@@ -473,6 +473,41 @@ export function sparkValues(facts: Fact[], range: Range, metric: Metric, maxPoin
     if (i >= 0 && i < values.length) values[i] += pick(f);
   }
   return values;
+}
+
+/** Totals per day (per week or month on long ranges), with labels: the data behind trend lines. */
+export function trendBuckets(facts: Fact[], range: Range, maxPoints = 62): { labels: string[]; totals: Totals[]; starts: number[] } {
+  const gran: Granularity = range.days <= maxPoints ? 'day' : range.days <= maxPoints * 7 ? 'week' : 'month';
+  const starts = bucketStarts(range, gran);
+  const totals = starts.map(() => emptyTotals());
+  const indexOf = (day: number) => (gran === 'day' ? day - range.from : starts.findIndex((b) => day >= b.start && day <= b.end));
+  for (const f of facts) {
+    const i = indexOf(f.day);
+    if (i >= 0 && i < totals.length) addInto(totals[i], f);
+  }
+  const labels = starts.map(({ start }) =>
+    gran === 'day' ? dayLabel(start) : gran === 'week' ? `Week of ${dayLabel(start)}` : monthLabel(start),
+  );
+  return { labels, totals, starts: starts.map((b) => b.start) };
+}
+
+/** Sessions started per bucket of trendBuckets(). */
+export function sessionCounts(sessions: SessionInfo[], range: Range, maxPoints = 62): number[] {
+  const gran: Granularity = range.days <= maxPoints ? 'day' : range.days <= maxPoints * 7 ? 'week' : 'month';
+  const starts = bucketStarts(range, gran);
+  const out = new Array<number>(starts.length).fill(0);
+  for (const s of sessions) {
+    const day = dayIndex(s.start);
+    const i = gran === 'day' ? day - range.from : starts.findIndex((b) => day >= b.start && day <= b.end);
+    if (i >= 0 && i < out.length) out[i] += 1;
+  }
+  return out;
+}
+
+/** Running total. */
+export function cumulative(values: number[]): number[] {
+  let acc = 0;
+  return values.map((v) => (acc += v));
 }
 
 export function dailyTotals(facts: Fact[]): Map<number, Totals> {

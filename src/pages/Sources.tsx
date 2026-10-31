@@ -50,7 +50,7 @@ function ImportButton({ label, accept, primary = true }: { label: string; accept
         disabled={Boolean(importing)}
         onClick={() => input.current?.click()}
         className={clsx(
-          'inline-flex min-h-[40px] items-center justify-center gap-2 rounded-xl px-4 text-[14px] font-semibold transition-opacity disabled:opacity-50',
+          'inline-flex min-h-[46px] w-full items-center justify-center gap-2 rounded-2xl px-5 text-[15px] font-semibold transition-opacity disabled:opacity-50 sm:w-auto',
           primary ? 'bg-ink text-page hover:opacity-90' : 'border border-line bg-surface text-ink hover:bg-surface-2',
         )}
       >
@@ -112,10 +112,7 @@ function ChatCard({ source, imported, children }: { source: SourceId; imported?:
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <ProviderDot provider={meta.provider} size={10} />
-          <div>
-            <h3 className="text-[16px] font-semibold">{app} history</h3>
-            <p className="text-[12.5px] text-muted">Every conversation, its model and project. Tokens are estimated.</p>
-          </div>
+          <h3 className="text-[16px] font-semibold">{app}</h3>
         </div>
         {imported ? (
           <CheckCircle2 size={18} className="shrink-0 text-good" aria-label="Imported" />
@@ -124,19 +121,13 @@ function ChatCard({ source, imported, children }: { source: SourceId; imported?:
         )}
       </div>
       {imported && <ImportedLine info={imported} />}
-      {imported ? (
-        <details className="group">
-          <summary className="cursor-pointer text-[13px] font-medium text-ink-2 hover:text-ink">How to import a newer export</summary>
-          <div className="mt-3">
-            <Steps>{children}</Steps>
-          </div>
-        </details>
-      ) : (
-        <Steps>{children}</Steps>
-      )}
-      <div>
-        <ImportButton label={imported ? `Import a newer ${app} export` : `Import ${app} export`} accept=".zip,.json,application/zip,application/json" primary={!imported} />
-      </div>
+      <ImportButton label={imported ? 'Import newer export' : 'Import export'} accept=".zip,.json,application/zip,application/json" primary={!imported} />
+      <details className="group">
+        <summary className="cursor-pointer text-[13px] font-medium text-ink-2 hover:text-ink">How to get the export</summary>
+        <div className="mt-3">
+          <Steps>{children}</Steps>
+        </div>
+      </details>
     </Card>
   );
 }
@@ -174,12 +165,8 @@ export function SourcesPage({ data }: { data: Data }) {
 
       {ds.demo && !importing && (
         <Card className="border-dashed p-5">
-          <h2 className="text-[15px] font-semibold">You're looking at demo data</h2>
-          <p className="mt-1 max-w-3xl text-[13.5px] leading-relaxed text-ink-2">
-            {device
-              ? 'Turn on automatic updates or import your ChatGPT or claude.ai history below, and the dashboard switches to your own usage. Everything is kept on this device.'
-              : 'Import your ChatGPT or claude.ai history below and the dashboard switches to your own usage.'}
-          </p>
+          <h2 className="text-[15px] font-semibold">Showing demo data</h2>
+          <p className="mt-1 text-[13.5px] text-ink-2">Turn on automatic updates or import a chat export to see yours.</p>
         </Card>
       )}
       {lastImported && lastImported.length > 0 && !importing && (
@@ -200,13 +187,13 @@ export function SourcesPage({ data }: { data: Data }) {
 
       {device && (
         <section className="flex flex-col gap-3">
-          <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-muted">Coding agents, automatically</h2>
+          <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-muted">Coding agents</h2>
           <AutoUpdatesCard />
         </section>
       )}
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-muted">Your chat history</h2>
+        <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-muted">Chats</h2>
         <div className="grid gap-4 lg:grid-cols-2">
           <ChatCard source="chatgpt" imported={latest('chatgpt')}>
             {[
@@ -229,44 +216,33 @@ export function SourcesPage({ data }: { data: Data }) {
             ]}
           </ChatCard>
         </div>
-        <p className="text-[12.5px] leading-relaxed text-muted">
-          Exports contain your full history, so importing a newer one replaces the older one. Chat exports don't include token
-          counts: they're estimated from message length (about four characters per token), counting that every reply
-          re-reads the conversation so far. claude.ai exports don't say which model replied, so those chats have no cost
-          estimate.
-        </p>
+        <p className="text-[12.5px] text-muted">Chat tokens are estimated from message length.</p>
       </section>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-muted">{device ? 'Agent log files' : 'Coding agents'}</h2>
-        {device ? (
-          <Card className="flex flex-col gap-3 p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-[16px] font-semibold">Import Claude Code or Codex logs by hand</h3>
-                <p className="mt-1 text-[13.5px] leading-relaxed text-ink-2">
-                  Automatic updates above are easier. Without them, you can zip <Kbd>~/.claude/projects</Kbd> or{' '}
-                  <Kbd>~/.codex/sessions</Kbd> on a computer, or pick single <Kbd>.jsonl</Kbd> files, to see those sessions
-                  here. Logs that automatic updates already send are not counted twice.
-                </p>
-              </div>
-            </div>
+      {device ? (
+        <details className="group rounded-[16px] border border-line bg-surface px-5 py-4">
+          <summary className="cursor-pointer text-[14px] font-medium text-ink-2">Import log files by hand</summary>
+          <div className="mt-3 flex flex-col gap-3">
+            <p className="text-[13px] text-ink-2">
+              A zip of <Kbd>~/.claude/projects</Kbd> or <Kbd>~/.codex/sessions</Kbd>, or single <Kbd>.jsonl</Kbd> files.
+            </p>
             {agentImports.map((i) => (
               <ImportedLine key={i.id} info={i} />
             ))}
-            <div>
-              <ImportButton label="Import session files" primary={false} />
-            </div>
-          </Card>
-        ) : (
+            <ImportButton label="Import session files" primary={false} />
+          </div>
+        </details>
+      ) : (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-[13px] font-semibold uppercase tracking-[0.06em] text-muted">Coding agents</h2>
           <div className="grid gap-4 lg:grid-cols-2">
             {(['claude-code', 'codex'] as SourceId[]).map((id) => {
-              const s = statuses.get(id);
-              return s ? <SourceCard key={id} s={s} /> : null;
+              const st = statuses.get(id);
+              return st ? <SourceCard key={id} s={st} /> : null;
             })}
           </div>
-        )}
-      </section>
+        </section>
+      )}
 
       {!device && (
         <section className="flex flex-col gap-3">
@@ -284,17 +260,18 @@ export function SourcesPage({ data }: { data: Data }) {
         <Card className="flex items-start gap-3 p-5">
           <SquarePlus size={20} className="mt-0.5 shrink-0 text-ink-2" aria-hidden />
           <div>
-            <h3 className="text-[15px] font-semibold">Put it on your Home Screen</h3>
-            <p className="mt-1 text-[13.5px] leading-relaxed text-ink-2">
-              In Safari, tap <Share size={13} className="inline -translate-y-px" aria-label="Share" /> Share, then{' '}
-              <b className="font-semibold text-ink">Add to Home Screen</b>. It opens full-screen like an app, works offline,
-              and iOS keeps your imported data.
+            <h3 className="text-[15px] font-semibold">Add to Home Screen</h3>
+            <p className="mt-1 text-[13.5px] text-ink-2">
+              Tap <Share size={13} className="inline -translate-y-px" aria-label="Share" /> Share, then{' '}
+              <b className="font-semibold text-ink">Add to Home Screen</b>.
             </p>
           </div>
         </Card>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <details className="group rounded-[16px] border border-line bg-surface px-5 py-4">
+        <summary className="cursor-pointer text-[14px] font-medium text-ink-2">How the numbers work</summary>
+      <div className="mt-4 grid gap-4 lg:grid-cols-3">
         <Card className="p-5">
           <CardHeader title="How costs are estimated" />
           <p className="mt-2 text-[13px] leading-relaxed text-ink-2">
@@ -367,6 +344,7 @@ export function SourcesPage({ data }: { data: Data }) {
           </ul>
         </Card>
       </div>
+      </details>
 
       {imports.length > 0 && (
         <div className="flex flex-wrap items-center justify-between gap-3 px-1">

@@ -66,7 +66,6 @@ export function ModelsCard({ data, facts, refetching }: { data: Data; facts: Fac
   return (
     <ChartCard
       title="Models"
-      subtitle="Tokens and estimated cost per model · select one to filter"
       refetching={refetching}
       table={() => <SimpleTable rows={items.map((i) => [String(i.label), i.display, i.secondary ?? ''])} headers={['Model', 'Tokens', 'Est. cost']} />}
     >
@@ -110,7 +109,6 @@ export function ProjectsCard({ data, facts, refetching }: { data: Data; facts: F
   return (
     <ChartCard
       title="Projects"
-      subtitle="Where tokens went · bars split by provider"
       refetching={refetching}
       actions={
         <a href="#/projects" className="text-[12px] font-medium text-ink-2 hover:text-ink">
@@ -154,12 +152,11 @@ export function ToolsCard({ data, sessions, refetching }: { data: Data; sessions
   }, [data, sessions]);
   return (
     <ChartCard
-      title="Tools used"
-      subtitle="Tool calls in this period"
+      title="Tools"
       refetching={refetching}
       table={() => <SimpleTable rows={items.map((i) => [String(i.label), String(i.sublabel), i.display])} headers={['Tool', 'Agent', 'Calls']} />}
     >
-      <BarList items={items} limit={9} emptyLabel="No tool calls recorded" />
+      <BarList items={items} limit={6} emptyLabel="No tool calls recorded" />
     </ChartCard>
   );
 }
@@ -181,11 +178,11 @@ export function CalendarCard({ facts, range, sessions, refetching }: { facts: Fa
   const activeDays = [...values.values()].filter((v) => v > 0).length;
   return (
     <ChartCard
-      title="Daily activity"
+      title="Active days"
       subtitle={
         busiest
-          ? `${activeDays} active day${activeDays === 1 ? '' : 's'} · busiest ${dayLabel(busiest[0])} with ${compact(busiest[1])} tokens`
-          : 'No activity in this period'
+          ? `${activeDays} active day${activeDays === 1 ? '' : 's'}`
+          : undefined
       }
       refetching={refetching}
       actions={<ScaleLegend />}
@@ -222,8 +219,8 @@ export function HourCard({ facts, refetching }: { facts: Fact[]; refetching?: bo
   const hour = (h: number) => new Date(2000, 0, 1, h).toLocaleTimeString([], { hour: 'numeric' });
   return (
     <ChartCard
-      title="When you use AI"
-      subtitle={peak.v ? `Busiest: ${days[peak.r]} around ${hour(peak.c)} · local time` : 'Local time'}
+      title="When you work"
+      subtitle={peak.v ? `Busiest: ${days[peak.r]} ${hour(peak.c)}` : undefined}
       refetching={refetching}
       table={() => (
         <SimpleTable

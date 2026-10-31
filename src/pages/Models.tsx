@@ -1,9 +1,13 @@
-import { AlertCircle } from 'lucide-react';
-import { useMemo } from 'react';
+import { AlertCircle, ChevronDown } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { PROVIDER_LABEL } from '../../shared/types';
+import { OTHER_COLOR, PROVIDER_COLOR, slotColor } from '../lib/colors';
 import { applyFilters, cacheHitRate, groupBy, type Data, type Totals } from '../lib/data';
 import { compact, pct, usd } from '../lib/format';
 import { useData, useFilters } from '../lib/store';
+import { ChartCard } from '../components/ChartCard';
+import { BarList } from '../components/charts/BarList';
+import { SegmentedBar } from '../components/charts/SegmentedBar';
 import { DataTable, type Column } from '../components/DataTable';
 import { UsageOverTime } from '../components/UsageOverTime';
 import { Card, CardHeader, ProviderDot } from '../components/ui';
@@ -20,6 +24,7 @@ const perM = (n?: number) => (n === undefined ? '–' : `$${n < 1 ? n.toFixed(3)
 export function ModelsPage({ data }: { data: Data }) {
   const { refetching } = useData();
   const { filters, range, setFilters } = useFilters();
+  const [showAll, setShowAll] = useState(false);
   const facts = useMemo(() => applyFilters(data, filters, range, { model: false }), [data, filters, range]);
   const rows: Row[] = useMemo(() => {
     const by = groupBy(facts, (f) => f.model);
@@ -100,21 +105,55 @@ export function ModelsPage({ data }: { data: Data }) {
         defaultSplit="model"
         refetching={refetching}
       />
-      <Card className={`p-4 sm:p-5 ${refetching ? 'refetching' : ''}`}>
-        <CardHeader
-          title="Model comparison"
-          subtitle="Prices are per million tokens. Click a row to filter the whole dashboard to that model."
-        />
-        <div className="-mx-3 mt-3">
-          <DataTable
-            columns={columns}
-            rows={rows}
-            rowKey={(r) => r.m.id}
-            onRowClick={(r) => setFilters({ model: filters.model === r.m.id ? null : r.m.id })}
-            initialSort={{ key: 'tokens', dir: 'desc' }}
+      <div className="grid gap-4 lg:grid-cols-2 lg:gap-5">
+        <ChartCard title="Share of tokens" refetching={refetching}>
+          <SegmentedBar
+            ariaLabel="Share of tokens by model"
+            parts={(() => {
+              const sorted = [...rows].sort((a, b) => b.t.tokens - a.t.tokens);
+              const top = sorted.slice(0, 5).map((r) => ({ key: r.m.id, label: r.m.label, value: r.t.tokens, display: compact(r.t.tokens), color: slotColor(r.m.rank) }));
+              const rest = sorted.slice(5).reduce((sum, r) => sum + r.t.tokens, 0);
+              return rest > 0 ? [...top, { key: '__other', label: 'Other', value: rest, display: compact(rest), color: OTHER_COLOR }] : top;
+            })()}
+          />
+        </ChartCard>
+        <ChartCard title="Cost by model" refetching={refetching}>
+          <BarList
+            items={[...rows]
+              .sort((a, b) => b.t.cost - a.t.cost)
+              .map((r) => ({
+                key: r.m.id,
+                label: r.m.label,
+                value: r.t.cost,
+                display: usd(r.t.cost),
+                color: PROVIDER_COLOR[r.m.provider],
+                icon: <ProviderDot provider={r.m.provider} />,
+                active: filters.model === r.m.id,
+              }))}
+            onSelect={(key) => setFilters({ model: filters.model === key ? null : key })}
+            limit={6}
             emptyLabel="No model usage in this period"
           />
-        </div>
+        </ChartCard>
+      </div>
+
+      <Card className={`p-4 sm:p-5 ${refetching ? 'refetching' : ''}`}>
+        <button type="button" onClick={() => setShowAll((v) => !v)} className="flex w-full items-center justify-between gap-3 text-left" aria-expanded={showAll}>
+          <CardHeader title="All models" subtitle={`${rows.length} in this period · prices per million tokens`} />
+          <ChevronDown size={20} className={`shrink-0 text-ink-2 transition-transform ${showAll ? 'rotate-180' : ''}`} aria-hidden />
+        </button>
+        {showAll && (
+          <div className="-mx-3 mt-3">
+            <DataTable
+              columns={columns}
+              rows={rows}
+              rowKey={(r) => r.m.id}
+              onRowClick={(r) => setFilters({ model: filters.model === r.m.id ? null : r.m.id })}
+              initialSort={{ key: 'tokens', dir: 'desc' }}
+              emptyLabel="No model usage in this period"
+            />
+          </div>
+        )}
       </Card>
     </div>
   );

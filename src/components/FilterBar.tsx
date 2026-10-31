@@ -66,7 +66,7 @@ export function FilterBar({ hideProject }: { hideProject?: boolean }) {
             type="button"
             onClick={() => setSheet(true)}
             className={clsx(
-              'relative ml-auto inline-flex h-8 w-9 shrink-0 items-center justify-center rounded-[10px] border bg-surface',
+              'relative ml-auto inline-flex h-10 w-11 shrink-0 items-center justify-center rounded-[12px] border bg-surface lg:h-8 lg:w-9 lg:rounded-[10px]',
               sheetCount ? 'border-line-strong text-ink' : 'border-line text-ink-2',
             )}
             aria-label={`More filters${sheetCount ? `, ${sheetCount} active` : ''}`}

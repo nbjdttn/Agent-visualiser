@@ -63,7 +63,7 @@ export function TriggerButton({ open, children, active }: { open: boolean; child
   return (
     <span
       className={clsx(
-        'inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-[10px] border px-2.5 text-[13px] font-medium transition-colors',
+        'inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-[12px] border px-3 text-[15px] font-medium transition-colors lg:h-8 lg:rounded-[10px] lg:px-2.5 lg:text-[13px]',
         active ? 'border-line-strong bg-surface text-ink' : 'border-line bg-surface text-ink-2 hover:text-ink',
         open && 'ring-2 ring-focus/30',
       )}

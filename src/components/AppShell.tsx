@@ -139,8 +139,7 @@ function DemoNote({ compactLayout }: { compactLayout?: boolean }) {
         compactLayout ? 'px-3 py-2' : 'px-3 py-2.5',
       )}
     >
-      <span className="font-semibold text-ink">Demo data.</span> Import your ChatGPT or claude.ai history to see your own
-      usage →
+      <span className="font-semibold text-ink">Demo data</span> · set up yours →
     </a>
   );
 }
@@ -187,7 +186,7 @@ function ThemeToggle() {
     <button
       type="button"
       onClick={() => setPref(next[pref])}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-[10px] border border-line bg-surface text-ink-2 hover:text-ink"
+      className="inline-flex h-10 w-10 items-center justify-center rounded-[12px] border border-line bg-surface text-ink-2 hover:text-ink lg:h-9 lg:w-9 lg:rounded-[10px]"
       title={label}
       aria-label={label}
     >
@@ -241,7 +240,7 @@ export function AppShell({
                     await refresh();
                     setSpinning(false);
                   }}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-line bg-surface px-2.5 text-[13px] font-medium text-ink-2 hover:text-ink"
+                  className="inline-flex h-10 items-center gap-1.5 rounded-[12px] border border-line bg-surface px-3 text-[14px] font-medium text-ink-2 hover:text-ink lg:h-9 lg:rounded-[10px] lg:px-2.5 lg:text-[13px]"
                   title="Re-scan logs and refresh API usage"
                   aria-label="Refresh"
                 >
@@ -252,7 +251,7 @@ export function AppShell({
               {mode === 'device' && route.page !== 'sources' && (
                 <a
                   href="#/sources"
-                  className="inline-flex h-9 items-center gap-1.5 rounded-[10px] border border-line bg-surface px-2.5 text-[13px] font-medium text-ink-2 hover:text-ink"
+                  className="inline-flex h-10 items-center gap-1.5 rounded-[12px] border border-line bg-surface px-3 text-[14px] font-medium text-ink-2 hover:text-ink lg:h-9 lg:rounded-[10px] lg:px-2.5 lg:text-[13px]"
                   aria-label="Import data"
                 >
                   <Upload size={15} aria-hidden />

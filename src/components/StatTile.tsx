@@ -1,6 +1,17 @@
 import type { ReactNode } from 'react';
+import { useWidth } from '../lib/useSize';
 import { Sparkline } from './charts/Sparkline';
 import { Delta } from './ui';
+
+/** A sparkline as wide as its container. */
+function FluidSparkline({ values, height = 30 }: { values: number[]; height?: number }) {
+  const [ref, width] = useWidth<HTMLDivElement>();
+  return (
+    <div ref={ref} className="w-full" style={{ height }}>
+      {width > 0 && <Sparkline values={values} width={width} height={height} />}
+    </div>
+  );
+}
 
 /** label · value · change vs the previous period · trend. */
 export function StatTile({
@@ -33,14 +44,8 @@ export function StatTile({
           </span>
         )}
       </div>
-      <div className="flex items-end justify-between gap-3">
-        <div className="whitespace-nowrap text-[24px] font-semibold leading-none tracking-[-0.02em]">{value}</div>
-        {spark && spark.length > 1 && (
-          <div className="hidden shrink-0 sm:block">
-            <Sparkline values={spark} width={84} height={28} />
-          </div>
-        )}
-      </div>
+      <div className="whitespace-nowrap text-[24px] font-semibold leading-none tracking-[-0.02em]">{value}</div>
+      {spark && spark.length > 1 && <FluidSparkline values={spark} />}
       {hint && <div className="truncate text-[12px] text-muted">{hint}</div>}
     </div>
   );
