@@ -14,7 +14,10 @@ import {
   parseSwap,
   parseVmStat,
   parseRemoteSession,
+  isGenuineInput,
   parseIdleSeconds,
+  parseInputSource,
+  RealInput,
   parseNames,
   parsePs,
   recover,
@@ -48,6 +51,34 @@ describe('reading the Mac', () => {
   it('reads keyboard and mouse idle time from ioreg', () => {
     expect(parseIdleSeconds(IOREG)).toBeCloseTo(5.123456789, 6);
     expect(parseIdleSeconds('nothing here')).toBeUndefined();
+  });
+
+  it('tells a person\'s input from events a program posts', () => {
+    const tickle = (src: string) => `   pid 424(WindowServer): [0x0006903400098071] 00:00:50 UserIsActive named: "com.apple.iohideventsystem.queue.tickle.nxevent ${src}"`;
+    const amph = 'service:IOHIDSystem pid:3757 process:Amphetamine';
+    expect(parseInputSource(tickle(amph))).toBe(amph);
+    expect(parseInputSource(PMSET)).toBeUndefined();
+    expect(isGenuineInput('serviceID:100046089 service:AppleMultitouchDevice product:Magic Mouse eventType:6')).toBe(true);
+    expect(isGenuineInput('serviceID:10001e7a6 service:AppleHIDKeyboardEventDriverV2 product:Magic Keyboard eventType:3')).toBe(true);
+    expect(isGenuineInput('serviceID:0 service:(null) product:(null) eventType:29')).toBe(true); // Touch ID
+    expect(isGenuineInput('service:IOHIDSystem pid:4469 process:remoting_me2me_host')).toBe(true); // you, from another computer
+    expect(isGenuineInput(amph)).toBe(false);
+    expect(isGenuineInput('service:IOHIDSystem pid:99 process:MouseJiggler')).toBe(false);
+    expect(isGenuineInput(undefined)).toBe(true);
+  });
+
+  it('keeps the time of your last real input across a keep-awake tool moving the mouse', () => {
+    const amph = 'service:IOHIDSystem pid:3757 process:Amphetamine';
+    const mouse = 'service:AppleMultitouchDevice product:Magic Mouse eventType:17';
+    const input = new RealInput();
+    expect(input.update(1_000_000, 5, mouse)).toBe(5);
+    expect(input.isNew(1_060_000, 1)).toBe(true);
+    expect(input.update(1_060_000, 1, amph)).toBe(65); // Amphetamine moved the mouse: you're still 65 s idle
+    expect(input.isNew(1_062_000, 3)).toBe(false);
+    expect(input.update(1_062_000, 3)).toBe(67);
+    expect(input.update(1_070_000, 0.5, 'service:IOHIDSystem pid:4469 process:remoting_me2me_host')).toBe(0.5);
+    expect(input.update(1_071_000, undefined)).toBeUndefined();
+    expect(new RealInput().update(1_000_000, 2, amph)).toBe(Infinity); // only a program's input seen so far
   });
 
   it('sees a connected remote-desktop session, not a video, call or keep-awake tool', () => {

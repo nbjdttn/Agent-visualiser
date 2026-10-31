@@ -56,6 +56,8 @@ import {
   type CpuTimes,
   parseRemoteSession,
   parseIdleSeconds,
+  parseInputSource,
+  RealInput,
   isStopped,
   parseNames,
   parsePs,
@@ -209,6 +211,12 @@ async function readIdleSeconds(): Promise<number | undefined> {
     }
   }
   return undefined;
+}
+
+/** What sent the most recent keyboard or mouse event (a device, a remote-desktop host, or a keep-awake tool). */
+async function readInputSource(): Promise<string | undefined> {
+  const r = await exec.run('pmset', ['-g', 'assertions']);
+  return r.ok ? parseInputSource(r.out) : undefined;
 }
 
 /** Whether someone is connected from another computer (Chrome Remote Desktop or Screen Sharing). */
@@ -534,6 +542,7 @@ async function run() {
   const holder = new Holder(exec, log, Date.now, background);
   let presence: Presence = { here: false, reason: 'away' };
   let idleSec: number | undefined;
+  const input = new RealInput();
   let remote = false;
   let agentsCores = 0;
   let busyCores: number | undefined;
@@ -628,7 +637,10 @@ async function run() {
     try {
       cfg = loadConfig(); // picks up `npm run gentle -- work|auto|full` and phone commands
       const now = Date.now();
-      idleSec = await readIdleSeconds();
+      const rawIdle = await readIdleSeconds();
+      // Only a person's input counts: not events a program posts, like Amphetamine moving the mouse.
+      const source = rawIdle !== undefined && input.isNew(now, rawIdle) ? await readInputSource() : undefined;
+      idleSec = input.update(now, rawIdle, source);
       if (now - lastRemote >= REMOTE_MS) {
         lastRemote = now;
         remote = await readRemote();

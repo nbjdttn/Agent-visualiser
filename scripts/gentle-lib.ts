@@ -47,6 +47,54 @@ const REMOTE_HOST = /remoting_me2me_host|screensharingd/i;
 
 const DISPLAY_ASSERTION = /^\s*pid (\d+)\((.*?)\):.*\b(PreventUserIdleDisplaySleep|NoDisplaySleepAssertion)\b/;
 
+/**
+ * What sent the most recent keyboard or mouse event, from WindowServer's input
+ * assertion: a device ("service:AppleMultitouchDevice product:Magic Mouse
+ * eventType:17") or a program posting events ("service:IOHIDSystem pid:3757
+ * process:Amphetamine").
+ */
+export function parseInputSource(pmset: string): string | undefined {
+  const m = /queue\.tickle(?:\.nxevent)?\s+([^"]*)"/.exec(pmset);
+  return m ? m[1].trim() : undefined;
+}
+
+/**
+ * Whether a person made that event: on a keyboard, mouse, trackpad or Touch ID,
+ * or from another computer through a remote-desktop host. Events any other
+ * program posts don't count, such as a keep-awake tool like Amphetamine moving
+ * the mouse so the Mac doesn't sleep. An unknown source counts as a person.
+ */
+export function isGenuineInput(source: string | undefined): boolean {
+  const program = source && /process:(.+)$/.exec(source)?.[1];
+  return !program || REMOTE_HOST.test(program);
+}
+
+/**
+ * Seconds since a person last used the keyboard or mouse (see isGenuineInput).
+ * macOS's idle time also restarts on events programs post, such as Amphetamine
+ * moving the mouse to keep the Mac awake; this remembers the last real input
+ * across those.
+ */
+export class RealInput {
+  private lastEvent?: number;
+  private lastReal?: number;
+
+  /** Whether macOS reports input newer than any seen so far (then pass its source to `update`). */
+  isNew(now: number, idleSec: number): boolean {
+    return this.lastEvent === undefined || now - idleSec * 1000 > this.lastEvent + 500;
+  }
+
+  update(now: number, idleSec: number | undefined, source?: string): number | undefined {
+    if (idleSec === undefined) return undefined;
+    if (this.isNew(now, idleSec)) {
+      this.lastEvent = now - idleSec * 1000;
+      if (isGenuineInput(source)) this.lastReal = this.lastEvent;
+      else if (this.lastReal === undefined) this.lastReal = -Infinity; // started on a program's input: no real input seen yet
+    }
+    return (now - (this.lastReal ?? this.lastEvent!)) / 1000;
+  }
+}
+
 /** Whether someone is connected from another computer, which counts as being at the Mac. */
 export function parseRemoteSession(pmset: string): boolean {
   return pmset.split('\n').some((line) => {
