@@ -46,18 +46,25 @@ export function Segmented<T extends string>({
   onChange,
   size = 'sm',
   label,
+  block = false,
 }: {
   value: T;
   options: { value: T; label: ReactNode; disabled?: boolean; title?: string }[];
   onChange: (v: T) => void;
   size?: 'sm' | 'md';
   label?: string;
+  /** Stretch across the full width, options sharing it equally. */
+  block?: boolean;
 }) {
   return (
     <div
       role="radiogroup"
       aria-label={label}
-      className={clsx('inline-flex items-center rounded-[13px] border border-line bg-surface-2 p-[3px] lg:rounded-[10px]', size === 'md' && 'h-11 lg:h-auto')}
+      className={clsx(
+        'items-center rounded-[13px] border border-line bg-surface-2 p-[3px] lg:rounded-[10px]',
+        block ? 'flex w-full' : 'inline-flex',
+        size === 'md' && 'h-11 lg:h-auto',
+      )}
     >
       {options.map((o) => {
         const active = o.value === value;
@@ -72,6 +79,7 @@ export function Segmented<T extends string>({
             onClick={() => onChange(o.value)}
             className={clsx(
               'whitespace-nowrap rounded-[7px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40',
+              block && 'flex-1 justify-center',
               size === 'sm' ? 'px-2.5 py-1 text-[12px]' : 'flex h-full items-center rounded-[10px] px-2.5 text-[15px] font-semibold leading-5 max-[389px]:px-2 max-[389px]:text-[14px] lg:h-auto lg:rounded-[7px] lg:px-3 lg:py-1 lg:text-[13px] lg:font-medium',
               active ? 'bg-surface text-ink shadow-[0_1px_2px_rgba(0,0,0,0.12)] ring-1 ring-line' : 'text-ink-2 hover:text-ink',
             )}

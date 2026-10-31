@@ -1,6 +1,7 @@
 import type { SourceId, SourceStatus } from '../../shared/types';
 import type { SourceSnapshot } from '../../core/model';
 import { deviceCode, generateDeviceKey, NotForThisDevice, openJson, type Envelope } from '../../core/sync/envelope';
+import { isControlInfo, type ControlInfo } from '../../core/sync/control';
 import {
   DEVICES_DIR,
   INDEX_FILE,
@@ -254,6 +255,8 @@ export interface SyncView {
   registered?: boolean;
   sources: SyncSourceView[];
   limits: ClaudeWindow[];
+  /** Computers sending updates; `control` is their gentle-mode phone link, when installed. */
+  computers: { name: string; control?: ControlInfo; updatedAt?: number }[];
 }
 
 export interface SyncedData {
@@ -338,6 +341,14 @@ export async function loadSynced(): Promise<SyncedData> {
     error: meta?.error,
     sources: files.map(({ name, kind, label, updatedAt, receivedAt, sessions }) => ({ name, kind, label, updatedAt, receivedAt, sessions })),
     limits: cloud?.limits ?? [],
+    computers: device
+      ? files
+          .filter((f) => f.kind === 'computer' && f.payload)
+          .map((f) => {
+            const p = f.payload as ComputerPayload;
+            return { name: p.name || f.label, control: isControlInfo(p.control) ? p.control : undefined, updatedAt: f.updatedAt };
+          })
+      : [],
   };
   if (device) {
     view.kid = device.kid;

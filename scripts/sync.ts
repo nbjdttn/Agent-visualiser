@@ -32,6 +32,7 @@ import { promisify } from 'node:util';
 import { tokensOf } from '../core/aggregate.js';
 import { Pricing } from '../core/pricing.js';
 import { kidOf, parseDeviceCode, publicKeyBytes, sealJson, type DevicePublic } from '../core/sync/envelope.js';
+import { isControlInfo, type ControlInfo } from '../core/sync/control.js';
 import {
   ARCHIVE_VERSION,
   CLOUD_FILE,
@@ -303,12 +304,24 @@ class ComputerScanner {
     saveArchive(archive);
     const rollup = rollupFromArchive(archive, fresh.codexLimits);
     const statuses = [this.claude.status(), this.codex.status()];
+    const control = gentleControl();
     const hash = crypto
       .createHash('sha256')
       .update(JSON.stringify(rollup))
       .update(JSON.stringify(statuses.map((s) => ({ ...s, updatedAt: undefined }))))
+      .update(JSON.stringify(control ?? null))
       .digest('hex');
-    return { payload: { v: 1, kind: 'computer', name: await computerName(), generatedAt: Date.now(), rollup, statuses }, hash };
+    return { payload: { v: 1, kind: 'computer', name: await computerName(), generatedAt: Date.now(), rollup, statuses, ...(control ? { control } : {}) }, hash };
+  }
+}
+
+/** Gentle mode's phone link, sent along so the phone can show the Work mode switch. */
+function gentleControl(): ControlInfo | undefined {
+  try {
+    const c = JSON.parse(fs.readFileSync(path.join(CONFIG_DIR, 'gentle.json'), 'utf8'));
+    return c.enabled && isControlInfo(c.control) ? c.control : undefined;
+  } catch {
+    return undefined;
   }
 }
 

@@ -14,6 +14,7 @@
     "start": "tsx server/index.ts",
     "demo": "tsx server/index.ts --demo",
     "sync": "tsx scripts/sync.ts",
+    "gentle": "tsx scripts/gentle.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "update-pricing": "tsx scripts/update-pricing.ts"

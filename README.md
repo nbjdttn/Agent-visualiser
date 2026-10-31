@@ -101,6 +101,43 @@ counts, model, title and time of each conversation, not the messages themselves)
 the Home Screen app, and **Data → Delete all imported data** removes them. Automatic updates are end-to-end encrypted
 for your registered devices; turning them off on the phone deletes its key and what it received.
 
+### Gentle mode: agents slow down while you use the Mac
+
+Agents running big jobs locally (simulations, builds) can make the Mac laggy just when you sit down to use it. Gentle
+mode is a small background helper that watches for you:
+
+- **You're at the Mac** (keyboard or mouse in the last 2 minutes, or a video or call keeping the screen awake): busy
+  jobs started by Claude Code or Codex drop to background priority. On Apple silicon that moves them onto the efficiency
+  cores and leaves the performance cores to you. They keep running, just slower.
+- **You're away**: after 2 minutes without input they get the whole Mac back, until you touch the keyboard or mouse
+  again (they're slowed within about 2 seconds).
+- **From the phone**: the Overview tab gets a switch for your Mac. **Work mode** keeps agent jobs slowed even when you're
+  not touching the Mac (say, before a call); **Full speed** never slows them; **Auto** follows you. The Mac answers with
+  what it's doing ("Work mode · 2 agent jobs slowed").
+
+Install it on the Mac, in the same folder as automatic updates:
+
+```sh
+npm run gentle -- install            # or: --pause to pause jobs instead, --away-after 5 for 5 minutes
+```
+
+| Command | What it does |
+| --- | --- |
+| `npm run gentle -- install` / `uninstall` | Start or stop the helper (macOS; it starts again after a restart) |
+| `npm run gentle -- status` | Mode, whether you count as here, and which jobs are held |
+| `npm run gentle -- work` / `auto` / `full` | Switch mode from the Mac (the phone switch does the same) |
+| `npm run gentle -- release` | Let every held job go right away |
+
+**Which jobs:** any busy process (over a quarter of a core) running below Claude Code or Codex, or started by Claude Code
+even if it has since detached (its environment says `CLAUDECODE=1`). Your own apps and terminals are never touched. To
+treat one of your own jobs the same way, start it with `AV_GENTLE=1`, e.g. `AV_GENTLE=1 python3 sim.py`.
+
+**Privacy and permissions:** it needs no special macOS permissions. It reads only how long the keyboard and mouse have
+been idle, never what you type or where you click. The phone switch goes through a public relay, [ntfy.sh](https://ntfy.sh), on a
+random topic. Every message is encrypted (AES-256-GCM) with a key that only reaches your phone inside the end-to-end
+encrypted usage updates, so the relay sees only ciphertext and nobody else can send commands. Use your own ntfy server
+with `--relay https://your.server`, or turn the phone switch off with `--relay off`.
+
 ### Publishing the phone app (one-time setup, for the repository owner)
 
 The workflow in `.github/workflows/phone-app.yml` builds the app and publishes it to GitHub Pages on every push to
@@ -161,13 +198,15 @@ protection), and requires a custom header for anything that changes data.
 ```
 core/                Runs on the phone and on the server
   parsers/           claudeCode, codex, chatgpt, claudeAi
-  sync/              automatic updates: encryption (envelope.ts) and what is sent (payload.ts)
+  sync/              automatic updates: encryption (envelope.ts), what is sent (payload.ts),
+                     and the phone-to-Mac switch for gentle mode (control.ts)
   importer.ts        reads export zips, conversations.json and .jsonl files
   aggregate.ts       events -> daily/hourly facts, sessions, projects, models
   pricing.ts         price lookup and cost estimates (+ pricing-snapshot.json)
   demo.ts, live.ts   demo history; live sessions and 5-hour windows
 server/              Desktop only: Hono API, log scanning, admin APIs, imports on disk
 scripts/sync.ts      Sends a computer's (or the cloud collector's) usage to your phone
+scripts/gentle.ts    Gentle mode: slows agent jobs while you use the Mac (logic in gentle-lib.ts)
 shared/types.ts      The dataset contract
 src/                 React + Tailwind app; charts are hand-built SVG (d3-scale, d3-shape)
   lib/device.ts      Phone mode: imports in IndexedDB, parsed in a Web Worker

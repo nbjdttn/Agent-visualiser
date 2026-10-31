@@ -1,3 +1,4 @@
+import type { ControlInfo } from './control';
 import type { CodexLimits, SourceId, SourceStatus } from '../../shared/types';
 import { newSessionMeta, type ProjectHint, type RawEvent, type SessionMeta, type SourceSnapshot, type StoredProject, type StoredSession } from '../model';
 import type { Pricing } from '../pricing';
@@ -66,6 +67,8 @@ export interface ComputerPayload {
   generatedAt: number;
   rollup: Rollup;
   statuses: SourceStatus[];
+  /** Gentle mode's phone link (Work mode switch), when it's installed on this computer. */
+  control?: ControlInfo;
 }
 
 export function rollupSnapshots(snapshots: SourceSnapshot[], pricing: Pricing): Rollup {
