@@ -15,7 +15,9 @@ export interface ShareCardData {
   subtitle: string;
   tokens: string;
   cost?: string;
-  providers: (ShareCardRow & { share: string })[];
+  /** e.g. "↑ 23% vs the previous 30 days" */
+  change?: string;
+  providers: (ShareCardRow & { share: string; cost?: string })[];
   chart: {
     title: string;
     /** One entry per bar: the value of each series, bottom to top. */
@@ -25,32 +27,78 @@ export interface ShareCardData {
     last: string;
     peak?: string;
   };
-  list?: { title: string; rows: ShareCardRow[] };
+  /** Up to three small facts, e.g. sessions, per day, busiest day. */
+  stats: { label: string; value: string; sub?: string }[];
+  /** Tokens by hour of day (24 entries, one value per series). */
+  hours?: { bars: number[][]; colors: string[] };
+  /** One list (full width) or two (side by side). */
+  lists: { title: string; rows: ShareCardRow[] }[];
 }
 
 const W = 1080;
 const P = 72;
+const INNER = W - P * 2;
 const FONT = '"Inter Variable", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+
+interface Theme {
+  surface: string;
+  text: string;
+  text2: string;
+  muted: string;
+  grid: string;
+  tile: string;
+  anthropic: string;
+  openai: string;
+}
 
 export async function renderShareCard(d: ShareCardData): Promise<Blob> {
   await fontsReady();
-  const c = {
+  const c: Theme = {
     surface: cssVar('--surface', '#ffffff'),
     text: cssVar('--text', '#0b0b0b'),
     text2: cssVar('--text-2', '#52514e'),
     muted: cssVar('--muted', '#898781'),
     grid: cssVar('--grid', '#e8e7e1'),
-    track: cssVar('--surface-2', '#f3f2ee'),
+    tile: cssVar('--surface-2', '#f3f2ee'),
     anthropic: cssVar('--anthropic', '#eb6834'),
     openai: cssVar('--openai', '#1baf7a'),
   };
 
-  const bigH = d.cost ? 222 : 150;
-  const splitH = d.providers.length ? 92 : 0;
-  const chartH = 376;
-  const listH = d.list?.rows.length ? 56 + 60 + d.list.rows.length * 96 : 0;
-  const H = 80 + 92 + 72 + bigH + (splitH ? 60 + splitH : 0) + 64 + chartH + listH + 48 + 44 + 72;
+  // Sections, top to bottom: [height, draw]. Heights are fixed so the canvas can be sized first.
+  const sections: [number, (ctx: CanvasRenderingContext2D, y: number) => void][] = [];
+  const gap = (h: number) => sections.push([h, () => undefined]);
 
+  sections.push([92, (ctx, y) => header(ctx, c, d, y)]);
+  gap(60);
+  const bigH = 150 + (d.cost ? 78 : 0) + (d.change ? 58 : 0);
+  sections.push([bigH, (ctx, y) => bigNumbers(ctx, c, d, y)]);
+  if (d.providers.length) {
+    gap(56);
+    sections.push([224, (ctx, y) => providerTiles(ctx, c, d, y)]);
+  }
+  gap(60);
+  sections.push([354, (ctx, y) => barChart(ctx, c, d.chart, y)]);
+  if (d.stats.length) {
+    gap(52);
+    sections.push([168, (ctx, y) => statTiles(ctx, c, d.stats, y)]);
+  }
+  if (d.hours) {
+    gap(56);
+    const hours = d.hours;
+    sections.push([228, (ctx, y) => hourChart(ctx, c, hours, y)]);
+  }
+  const lists = d.lists.filter((l) => l.rows.length);
+  if (lists.length) {
+    gap(56);
+    const rows = Math.max(...lists.map((l) => l.rows.length));
+    const rowH = lists.length > 1 ? 84 : 96;
+    sections.push([58 + rows * rowH, (ctx, y) => listSection(ctx, c, lists, y, rowH)]);
+  }
+  gap(48);
+  sections.push([44, (ctx, y) => footer(ctx, c, y)]);
+
+  const top = 80;
+  const H = top + sections.reduce((a, [h]) => a + h, 0) + 72;
   const canvas = document.createElement('canvas');
   canvas.width = W;
   canvas.height = H;
@@ -63,19 +111,26 @@ export async function renderShareCard(d: ShareCardData): Promise<Blob> {
   glow(ctx, 0, 0, W * 1.15, c.anthropic, 0.13, H);
   glow(ctx, W, H, W * 1.05, c.openai, 0.11, H);
 
-  let y = 80;
+  let y = top;
+  for (const [h, draw] of sections) {
+    draw(ctx, y);
+    y += h;
+  }
 
-  // Header: app icon, title, period.
+  return new Promise((resolveBlob, reject) => canvas.toBlob((b) => (b ? resolveBlob(b) : reject(new Error('Could not make the picture'))), 'image/png'));
+}
+
+function header(ctx: CanvasRenderingContext2D, c: Theme, d: ShareCardData, y: number) {
   drawLogo(ctx, P, y, 92);
   setFont(ctx, 700, 50);
   ctx.fillStyle = c.text;
-  ctx.fillText(fit(ctx, d.title, W - P * 2 - 120), P + 120, y + 42);
+  ctx.fillText(fit(ctx, d.title, INNER - 120), P + 120, y + 42);
   setFont(ctx, 500, 31);
   ctx.fillStyle = c.muted;
-  ctx.fillText(fit(ctx, d.subtitle, W - P * 2 - 120), P + 120, y + 84);
-  y += 92 + 72;
+  ctx.fillText(fit(ctx, d.subtitle, INNER - 120), P + 120, y + 84);
+}
 
-  // The big numbers.
+function bigNumbers(ctx: CanvasRenderingContext2D, c: Theme, d: ShareCardData, y: number) {
   setFont(ctx, 750, 172);
   ctx.fillStyle = c.text;
   ctx.fillText(d.tokens, P - 6, y + 130);
@@ -83,78 +138,158 @@ export async function renderShareCard(d: ShareCardData): Promise<Blob> {
   setFont(ctx, 600, 46);
   ctx.fillStyle = c.muted;
   ctx.fillText('tokens', P + numW + 14, y + 130);
+  let line = y + 130;
   if (d.cost) {
+    line += 78;
     setFont(ctx, 700, 62);
     ctx.fillStyle = c.text;
-    ctx.fillText(d.cost, P, y + 208);
+    ctx.fillText(d.cost, P, line);
     const costW = ctx.measureText(d.cost).width;
     setFont(ctx, 500, 36);
     ctx.fillStyle = c.muted;
-    ctx.fillText('at API prices', P + costW + 18, y + 208);
+    ctx.fillText('at API prices', P + costW + 18, line);
   }
-  y += bigH;
+  if (d.change) {
+    line += 58;
+    setFont(ctx, 600, 33);
+    ctx.fillStyle = c.text2;
+    ctx.fillText(d.change, P, line);
+  }
+}
 
-  // Claude / OpenAI split.
-  if (d.providers.length) {
-    y += 60;
-    const total = d.providers.reduce((a, p) => a + p.value, 0) || 1;
-    const gap = 6;
-    const full = W - P * 2 - gap * (d.providers.length - 1);
-    let x = P;
-    for (const p of d.providers) {
-      const w = Math.max(14, (full * p.value) / total);
-      ctx.fillStyle = resolve(p.color);
-      roundRect(ctx, x, y, Math.min(w, W - P - x), 30, 15);
-      ctx.fill();
-      x += w + gap;
-    }
-    x = P;
-    for (const p of d.providers) {
-      ctx.fillStyle = resolve(p.color);
-      ctx.beginPath();
-      ctx.arc(x + 10, y + 30 + 37, 10, 0, Math.PI * 2);
-      ctx.fill();
-      x += 32;
-      setFont(ctx, 500, 34);
-      ctx.fillStyle = c.text2;
-      ctx.fillText(p.label, x, y + 30 + 49);
-      x += ctx.measureText(p.label).width + 14;
-      setFont(ctx, 700, 34);
-      ctx.fillStyle = c.text;
-      ctx.fillText(p.display, x, y + 30 + 49);
-      x += ctx.measureText(p.display).width + 12;
-      setFont(ctx, 500, 30);
-      ctx.fillStyle = c.muted;
-      ctx.fillText(p.share, x, y + 30 + 49);
-      x += ctx.measureText(p.share).width + 44;
-    }
-    y += splitH;
+/** A thin split bar, then one tile per provider: tokens, cost and share. */
+function providerTiles(ctx: CanvasRenderingContext2D, c: Theme, d: ShareCardData, y: number) {
+  const total = d.providers.reduce((a, p) => a + p.value, 0) || 1;
+  const gap = 6;
+  const full = INNER - gap * (d.providers.length - 1);
+  let x = P;
+  for (const p of d.providers) {
+    const w = Math.max(14, (full * p.value) / total);
+    ctx.fillStyle = resolve(p.color);
+    roundRect(ctx, x, y, Math.min(w, W - P - x), 26, 13);
+    ctx.fill();
+    x += w + gap;
   }
 
-  // Bars over time.
-  y += 64;
+  const n = d.providers.length;
+  const tileGap = 24;
+  const tileW = (INNER - tileGap * (n - 1)) / n;
+  const ty = y + 26 + 20;
+  d.providers.forEach((p, i) => {
+    const tx = P + i * (tileW + tileGap);
+    ctx.fillStyle = c.tile;
+    roundRect(ctx, tx, ty, tileW, 178, 30);
+    ctx.fill();
+    ctx.fillStyle = resolve(p.color);
+    ctx.beginPath();
+    ctx.arc(tx + 38, ty + 44, 10, 0, Math.PI * 2);
+    ctx.fill();
+    setFont(ctx, 600, 32);
+    ctx.fillStyle = c.text2;
+    ctx.fillText(p.label, tx + 60, ty + 55);
+    setFont(ctx, 750, 64);
+    ctx.fillStyle = c.text;
+    ctx.fillText(fit(ctx, p.display, tileW - 56), tx + 28, ty + 126);
+    setFont(ctx, 500, 30);
+    ctx.fillStyle = c.muted;
+    ctx.fillText(fit(ctx, p.cost ? `${p.cost} · ${p.share}` : p.share, tileW - 56), tx + 28, ty + 160);
+  });
+}
+
+function barChart(ctx: CanvasRenderingContext2D, c: Theme, chart: ShareCardData['chart'], y: number) {
   setFont(ctx, 650, 34);
   ctx.fillStyle = c.text;
-  ctx.fillText(d.chart.title, P, y + 30);
-  const plotTop = y + 60;
-  const plotH = 260;
-  const base = plotTop + plotH;
-  const n = d.chart.bars.length;
-  const totals = d.chart.bars.map((b) => b.reduce((a, v) => a + v, 0));
+  ctx.fillText(chart.title, P, y + 30);
+  const plotH = 240;
+  const base = y + 58 + plotH;
+  const peak = stackedBars(ctx, c, chart.bars, chart.colors, base, plotH - 44, 64, 9);
+  if (chart.peak && peak) {
+    setFont(ctx, 650, 27);
+    ctx.fillStyle = c.text2;
+    const lw = ctx.measureText(chart.peak).width;
+    const lx = Math.max(P, Math.min(W - P - lw, peak.x - lw / 2));
+    ctx.fillText(chart.peak, lx, peak.top - 14);
+  }
+  setFont(ctx, 500, 28);
+  ctx.fillStyle = c.muted;
+  ctx.fillText(chart.first, P, base + 46);
+  ctx.textAlign = 'right';
+  ctx.fillText(chart.last, W - P, base + 46);
+  ctx.textAlign = 'left';
+}
+
+function statTiles(ctx: CanvasRenderingContext2D, c: Theme, stats: ShareCardData['stats'], y: number) {
+  const n = stats.length;
+  const tileGap = 24;
+  const tileW = (INNER - tileGap * (n - 1)) / n;
+  stats.forEach((s, i) => {
+    const tx = P + i * (tileW + tileGap);
+    ctx.fillStyle = c.tile;
+    roundRect(ctx, tx, y, tileW, 168, 28);
+    ctx.fill();
+    setFont(ctx, 600, 27);
+    ctx.fillStyle = c.muted;
+    ctx.fillText(fit(ctx, s.label, tileW - 52), tx + 26, y + 48);
+    let size = 54;
+    setFont(ctx, 750, size);
+    while (size > 34 && ctx.measureText(s.value).width > tileW - 52) setFont(ctx, 750, (size -= 2));
+    ctx.fillStyle = c.text;
+    ctx.fillText(s.value, tx + 26, y + 112);
+    if (s.sub) {
+      setFont(ctx, 500, 26);
+      ctx.fillStyle = c.muted;
+      ctx.fillText(fit(ctx, s.sub, tileW - 52), tx + 26, y + 148);
+    }
+  });
+}
+
+function hourChart(ctx: CanvasRenderingContext2D, c: Theme, hours: NonNullable<ShareCardData['hours']>, y: number) {
+  setFont(ctx, 650, 34);
+  ctx.fillStyle = c.text;
+  ctx.fillText('When you work', P, y + 30);
+  const plotH = 120;
+  const base = y + 58 + plotH;
+  stackedBars(ctx, c, hours.bars, hours.colors, base, plotH, 30, 7);
+  setFont(ctx, 500, 27);
+  ctx.fillStyle = c.muted;
+  const slot = INNER / 24;
+  for (const [h, label] of [
+    [0, '12 AM'],
+    [6, '6 AM'],
+    [12, '12 PM'],
+    [18, '6 PM'],
+  ] as const) {
+    ctx.fillText(label, P + h * slot + (h === 0 ? 0 : slot / 2 - ctx.measureText(label).width / 2), base + 44);
+  }
+}
+
+/** Stacked bars on one baseline; returns where the tallest one ends (for a label). */
+function stackedBars(
+  ctx: CanvasRenderingContext2D,
+  c: Theme,
+  bars: number[][],
+  colorList: string[],
+  base: number,
+  maxH: number,
+  maxW: number,
+  radius: number,
+): { x: number; top: number } | undefined {
+  const n = bars.length;
+  const totals = bars.map((b) => b.reduce((a, v) => a + v, 0));
   const max = Math.max(0, ...totals);
-  const slot = (W - P * 2) / Math.max(1, n);
-  const bw = Math.min(64, Math.max(3, slot * 0.72));
-  const scale = max > 0 ? (plotH - 44) / max : 0;
-  const colors = d.chart.colors.map(resolve);
-  let peakAt = -1;
-  d.chart.bars.forEach((parts, i) => {
+  const slot = INNER / Math.max(1, n);
+  const bw = Math.min(maxW, Math.max(3, slot * 0.72));
+  const scale = max > 0 ? maxH / max : 0;
+  const colors = colorList.map(resolve);
+  let peak: { x: number; top: number } | undefined;
+  bars.forEach((parts, i) => {
     const h = totals[i] * scale;
     if (h <= 0) return;
-    if (totals[i] === max && peakAt < 0) peakAt = i;
     const x = P + i * slot + (slot - bw) / 2;
     const top = base - Math.max(3, h);
+    if (totals[i] === max && !peak) peak = { x: x + bw / 2, top };
     ctx.save();
-    roundTop(ctx, x, top, bw, base - top, Math.min(9, bw / 2));
+    roundTop(ctx, x, top, bw, base - top, Math.min(radius, bw / 2));
     ctx.clip();
     let yy = base;
     parts.forEach((v, k) => {
@@ -171,65 +306,53 @@ export async function renderShareCard(d: ShareCardData): Promise<Blob> {
     ctx.restore();
   });
   ctx.fillStyle = c.grid;
-  ctx.fillRect(P, base, W - P * 2, 2);
-  if (d.chart.peak && peakAt >= 0) {
-    setFont(ctx, 650, 27);
-    ctx.fillStyle = c.text2;
-    const label = d.chart.peak;
-    const lw = ctx.measureText(label).width;
-    const cx = P + peakAt * slot + slot / 2;
-    const lx = Math.max(P, Math.min(W - P - lw, cx - lw / 2));
-    ctx.fillText(label, lx, base - max * scale - 14);
-  }
-  setFont(ctx, 500, 28);
-  ctx.fillStyle = c.muted;
-  ctx.textAlign = 'left';
-  ctx.fillText(d.chart.first, P, base + 46);
-  ctx.textAlign = 'right';
-  ctx.fillText(d.chart.last, W - P, base + 46);
-  ctx.textAlign = 'left';
-  y += chartH;
+  ctx.fillRect(P, base, INNER, 2);
+  return peak;
+}
 
-  // What it went on.
-  if (d.list?.rows.length) {
-    y += 56;
+function listSection(ctx: CanvasRenderingContext2D, c: Theme, lists: ShareCardData['lists'], y: number, rowH: number) {
+  const two = lists.length > 1;
+  const colGap = 48;
+  const colW = two ? (INNER - colGap) / 2 : INNER;
+  const nameSize = two ? 30 : 36;
+  lists.slice(0, 2).forEach((list, col) => {
+    const x0 = P + col * (colW + colGap);
     setFont(ctx, 650, 34);
     ctx.fillStyle = c.text;
-    ctx.fillText(d.list.title, P, y + 30);
-    y += 60;
-    const maxV = Math.max(...d.list.rows.map((r) => r.value)) || 1;
-    for (const r of d.list.rows) {
+    ctx.fillText(list.title, x0, y + 30);
+    const maxV = Math.max(...list.rows.map((r) => r.value)) || 1;
+    list.rows.forEach((r, i) => {
+      const ry = y + 58 + i * rowH;
       const color = resolve(r.color);
       ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.arc(P + 10, y + 22, 10, 0, Math.PI * 2);
+      ctx.arc(x0 + 9, ry + (two ? 20 : 22), two ? 8 : 10, 0, Math.PI * 2);
       ctx.fill();
-      setFont(ctx, 700, 36);
+      setFont(ctx, 700, nameSize);
       const vw = ctx.measureText(r.display).width;
       ctx.fillStyle = c.text;
       ctx.textAlign = 'right';
-      ctx.fillText(r.display, W - P, y + 34);
+      ctx.fillText(r.display, x0 + colW, ry + (two ? 31 : 34));
       ctx.textAlign = 'left';
-      setFont(ctx, 500, 36);
-      ctx.fillText(fit(ctx, r.label, W - P * 2 - 32 - vw - 28), P + 32, y + 34);
-      ctx.fillStyle = c.track;
-      roundRect(ctx, P, y + 54, W - P * 2, 14, 7);
+      setFont(ctx, 500, nameSize);
+      ctx.fillText(fit(ctx, r.label, colW - 28 - vw - 18), x0 + 28, ry + (two ? 31 : 34));
+      const by = ry + (two ? 46 : 54);
+      const bh = two ? 12 : 14;
+      ctx.fillStyle = c.tile;
+      roundRect(ctx, x0, by, colW, bh, bh / 2);
       ctx.fill();
       ctx.fillStyle = color;
-      roundRect(ctx, P, y + 54, Math.max(14, ((W - P * 2) * r.value) / maxV), 14, 7);
+      roundRect(ctx, x0, by, Math.max(bh, (colW * r.value) / maxV), bh, bh / 2);
       ctx.fill();
-      y += 96;
-    }
-  }
+    });
+  });
+}
 
-  // Footer.
-  y += 48;
+function footer(ctx: CanvasRenderingContext2D, c: Theme, y: number) {
   drawLogo(ctx, P, y, 44);
   setFont(ctx, 600, 30);
   ctx.fillStyle = c.text2;
   ctx.fillText('Agent Visualiser', P + 60, y + 32);
-
-  return new Promise((resolveBlob, reject) => canvas.toBlob((b) => (b ? resolveBlob(b) : reject(new Error('Could not make the picture'))), 'image/png'));
 }
 
 async function fontsReady() {

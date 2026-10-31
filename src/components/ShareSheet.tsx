@@ -6,17 +6,19 @@ import {
   applyFilters,
   autoGranularity,
   buildSeries,
+  filterSessions,
   groupBy,
   isUnknownModel,
   isUnknownProject,
   presetLabel,
+  previousRange,
   rangeRanks,
   sum,
   type Data,
   type Filters,
   type Range,
 } from '../lib/data';
-import { compact, pct, rangeLabel, usd } from '../lib/format';
+import { compact, dayLabel, pct, rangeLabel, usd } from '../lib/format';
 import type { Route } from '../lib/router';
 import { renderShareCard, type ShareCardData, type ShareCardRow } from '../lib/shareCard';
 import { useData, useFilters } from '../lib/store';
@@ -32,16 +34,47 @@ function cardData(data: Data, filters: Filters, range: Range, projectKey: string
   const byProvider = groupBy(facts, (x) => x.provider);
   const total = t.tokens || 1;
   const providers = PROVIDERS.filter((p) => (byProvider.get(p)?.tokens ?? 0) > 0).map((p) => {
-    const v = byProvider.get(p)!.tokens;
-    return { label: PROVIDER_LABEL[p], value: v, display: compact(v), share: pct(v / total), color: PROVIDER_COLOR[p] };
+    const v = byProvider.get(p)!;
+    return {
+      label: PROVIDER_LABEL[p],
+      value: v.tokens,
+      display: compact(v.tokens),
+      cost: v.cost > 0 ? usd(v.cost) : undefined,
+      share: pct(v.tokens / total),
+      color: PROVIDER_COLOR[p],
+    };
   });
+
+  // Against the same number of days just before (neutral wording: more isn't good or bad).
+  const before = sum(applyFilters(data, f, previousRange(range))).tokens;
+  const ratio = before > 0 ? t.tokens / before - 1 : NaN;
+  const change = Number.isFinite(ratio)
+    ? `${Math.abs(ratio) < 0.005 ? 'Same as' : `${ratio > 0 ? '↑' : '↓'} ${pct(Math.abs(ratio))} vs`} the previous ${range.days === 1 ? 'day' : `${range.days} days`}`
+    : undefined;
+
+  const sessions = filterSessions(data, f, range).length;
+  const byDay = [...groupBy(facts, (x) => x.day).entries()].sort((a, b) => b[1].tokens - a[1].tokens)[0];
+  const hourly = Array.from({ length: 24 }, () => PROVIDERS.map(() => 0));
+  for (const x of facts) if (x.hour >= 0) hourly[x.hour][PROVIDERS.indexOf(x.provider)] += x.tokens;
+  const hourTotals = hourly.map((h) => h[0] + h[1]);
+  const busiestHour = hourTotals.indexOf(Math.max(...hourTotals));
+  const hourName = (h: number) => `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? 'AM' : 'PM'}`;
+  const stats: ShareCardData['stats'] = [
+    { label: 'Sessions', value: sessions.toLocaleString('en-US'), sub: 'agents and chats' },
+    {
+      label: 'Per day',
+      value: compact(t.tokens / Math.max(1, range.days)),
+      sub: t.cost > 0 ? `${usd(t.cost / Math.max(1, range.days))} a day` : 'tokens',
+    },
+    range.days === 1
+      ? { label: 'Busiest hour', value: hourTotals[busiestHour] > 0 ? hourName(busiestHour) : '–', sub: hourTotals[busiestHour] > 0 ? compact(hourTotals[busiestHour]) : undefined }
+      : { label: 'Busiest day', value: byDay ? compact(byDay[1].tokens) : '–', sub: byDay ? dayLabel(byDay[0], { weekday: true }) : undefined },
+  ];
 
   let chart: ShareCardData['chart'];
   if (range.days === 1) {
-    const hours = Array.from({ length: 24 }, () => PROVIDERS.map(() => 0));
-    for (const x of facts) if (x.hour >= 0) hours[x.hour][PROVIDERS.indexOf(x.provider)] += x.tokens;
-    const peak = Math.max(...hours.map((h) => h[0] + h[1]));
-    chart = { title: 'Hour by hour', bars: hours, colors: PROVIDERS.map((p) => PROVIDER_COLOR[p]), first: '12 AM', last: '11 PM', peak: peak ? compact(peak) : undefined };
+    const peak = Math.max(...hourTotals);
+    chart = { title: 'Hour by hour', bars: hourly, colors: PROVIDERS.map((p) => PROVIDER_COLOR[p]), first: '12 AM', last: '11 PM', peak: peak ? compact(peak) : undefined };
   } else {
     const gran = autoGranularity(range);
     const { series, buckets } = buildSeries(data, facts, range, gran, 'provider', 'tokens');
@@ -74,7 +107,10 @@ function cardData(data: Data, filters: Filters, range: Range, projectKey: string
       });
   };
   const showProjects = !projectKey && names;
-  const rows = top(showProjects ? 'proj' : 'model');
+  const lists = [
+    ...(showProjects ? [{ title: 'Top projects', rows: top('proj') }] : []),
+    { title: 'Top models', rows: top('model') },
+  ].filter((l) => l.rows.length);
 
   const projectName = projectKey ? data.projects[data.projectByKey.get(projectKey) ?? -1]?.name : undefined;
   const who = filters.provider === 'anthropic' ? 'Claude' : filters.provider === 'openai' ? 'OpenAI' : 'AI';
@@ -85,9 +121,12 @@ function cardData(data: Data, filters: Filters, range: Range, projectKey: string
     subtitle: preset === 'Custom range' ? dates : `${preset} · ${dates}`,
     tokens: compact(t.tokens),
     cost: t.cost > 0 ? usd(t.cost) : undefined,
+    change,
     providers,
     chart,
-    list: rows.length ? { title: showProjects ? 'Top projects' : 'Top models', rows } : undefined,
+    stats,
+    hours: range.days > 1 && hourTotals.some((v) => v > 0) ? { bars: hourly, colors: PROVIDERS.map((p) => PROVIDER_COLOR[p]) } : undefined,
+    lists,
   };
 }
 
@@ -215,7 +254,7 @@ export function ShareSheet({ route, onClose }: { route: Route; onClose: () => vo
           >
             <span>
               <span className="block text-[16px] font-medium text-ink">Show project names</span>
-              <span className="block text-[13.5px] text-muted">{names ? 'Your top 3 projects are on the picture' : 'Your top 3 models instead'}</span>
+              <span className="block text-[13.5px] text-muted">{names ? 'Your top 3 projects are on the picture' : 'Only your models are shown'}</span>
             </span>
             <span className={`relative h-[31px] w-[51px] shrink-0 rounded-full transition-colors ${names ? 'bg-[var(--good)]' : 'bg-[var(--border-strong)]'}`} aria-hidden>
               <span className={`absolute top-[2px] h-[27px] w-[27px] rounded-full bg-white shadow transition-transform ${names ? 'translate-x-[22px]' : 'translate-x-[2px]'}`} />
