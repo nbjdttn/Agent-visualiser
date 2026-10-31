@@ -221,7 +221,7 @@ export function AppShell({
 
       <div className="lg:pl-[244px]">
         <header
-          className="z-20 border-b border-line bg-[color-mix(in_srgb,var(--page)_82%,transparent)] backdrop-blur-xl lg:sticky lg:top-0"
+          className="relative z-20 border-b border-line bg-[color-mix(in_srgb,var(--page)_82%,transparent)] backdrop-blur-xl lg:sticky lg:top-0"
           style={{ paddingTop: 'env(safe-area-inset-top)' }}
         >
           <div className="mx-auto flex max-w-[1480px] flex-col gap-3 px-4 py-3 sm:px-6 lg:px-8">
