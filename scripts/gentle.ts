@@ -38,6 +38,7 @@ import {
 } from '../core/sync/control.js';
 import {
   AGENT_ENV,
+  OPT_OUT_ENV,
   agentJobs,
   decidePresence,
   Holder,
@@ -205,7 +206,7 @@ async function backgroundPriorityWorks(): Promise<boolean> {
 }
 
 /** pid → whether its environment says an agent started it (cached per command line). */
-const envCache = new Map<number, { command: string; marked: boolean }>();
+const envCache = new Map<number, { command: string; marked: boolean; optOut: boolean }>();
 
 async function scan(): Promise<{ procs: Proc[]; names: Map<number, string>; jobs: Proc[] }> {
   const [ps, ucomm] = await Promise.all([exec.run('ps', ['-axww', '-o', 'pid=,ppid=,uid=,pcpu=,command=']), exec.run('ps', ['-ax', '-o', 'pid=,ucomm='])]);
@@ -221,12 +222,17 @@ async function scan(): Promise<{ procs: Proc[]; names: Map<number, string>; jobs
       const m = /^\s*(\d+)\s+(.*)$/.exec(line);
       if (m) envOf.set(Number(m[1]), m[2]);
     }
-    for (const p of unknown) envCache.set(p.pid, { command: p.command, marked: AGENT_ENV.test(envOf.get(p.pid) ?? '') });
+    for (const p of unknown) {
+      const env = envOf.get(p.pid) ?? '';
+      envCache.set(p.pid, { command: p.command, marked: AGENT_ENV.test(env), optOut: OPT_OUT_ENV.test(env) });
+    }
   }
   const alive = new Set(procs.map((p) => p.pid));
   for (const pid of envCache.keys()) if (!alive.has(pid)) envCache.delete(pid);
   const marked = new Set([...envCache.entries()].filter(([, v]) => v.marked).map(([pid]) => pid));
-  return { procs, names, jobs: agentJobs(procs, names, marked, { uid, self: process.pid, minCpu: MIN_CPU }) };
+  const optOut = new Set([...envCache.entries()].filter(([, v]) => v.optOut).map(([pid]) => pid));
+  const jobs = agentJobs(procs, names, marked, { uid, self: process.pid, minCpu: MIN_CPU }).filter((p) => !optOut.has(p.pid));
+  return { procs, names, jobs };
 }
 
 // ---------------------------------------------------------------------------

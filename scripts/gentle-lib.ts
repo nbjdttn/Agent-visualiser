@@ -83,6 +83,9 @@ export function isAgentRoot(name: string | undefined, command: string): boolean 
 /** Environment markers of work started by an agent, kept even after the job outlives its shell. */
 export const AGENT_ENV = /(^|\s)(CLAUDECODE=1|CLAUDE_CODE_ENTRYPOINT=\S+|CODEX_SANDBOX=\S+|AV_GENTLE=1)(\s|$)/;
 
+/** A job started with `AV_GENTLE=0` is left alone, e.g. one a scheduler of its own already keeps in check. */
+export const OPT_OUT_ENV = /(^|\s)AV_GENTLE=0(\s|$)/;
+
 /** Our own processes (this helper and the usage sync) are never held. */
 const OWN = /scripts\/(gentle|sync)\.ts/;
 

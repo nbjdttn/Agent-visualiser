@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { latestState, newControlInfo, nonce, openControl, parseRelayLines, sealControl, type StateMessage } from '../core/sync/control';
 import {
+  AGENT_ENV,
+  OPT_OUT_ENV,
   agentJobs,
   decidePresence,
   Holder,
@@ -104,6 +106,16 @@ describe("finding the agents' jobs", () => {
   it("returns busy jobs below Claude Code or Codex and jobs an agent's environment marks, nothing else", () => {
     const jobs = agentJobs(parsePs(psOut), names, new Set([800]), { uid: UID, self: 4242, minCpu: 25 });
     expect(jobs.map((j) => j.pid).sort((a, b) => a - b)).toEqual([530, 531, 610, 800, 960]);
+  });
+});
+
+describe('environment markers', () => {
+  it('tells marked jobs from opted-out ones', () => {
+    expect(AGENT_ENV.test('PATH=/bin CLAUDECODE=1 HOME=/Users/x')).toBe(true);
+    expect(AGENT_ENV.test('PATH=/bin AV_GENTLE=1')).toBe(true);
+    expect(OPT_OUT_ENV.test('CLAUDECODE=1 AV_GENTLE=0 OMP_NUM_THREADS=1')).toBe(true);
+    expect(OPT_OUT_ENV.test('AV_GENTLE=1')).toBe(false);
+    expect(OPT_OUT_ENV.test('XAV_GENTLE=0')).toBe(false);
   });
 });
 

@@ -130,7 +130,8 @@ npm run gentle -- install            # or: --pause to pause jobs instead, --away
 
 **Which jobs:** any busy process (over a quarter of a core) running below Claude Code or Codex, or started by Claude Code
 even if it has since detached (its environment says `CLAUDECODE=1`). Your own apps and terminals are never touched. To
-treat one of your own jobs the same way, start it with `AV_GENTLE=1`, e.g. `AV_GENTLE=1 python3 sim.py`.
+treat one of your own jobs the same way, start it with `AV_GENTLE=1`, e.g. `AV_GENTLE=1 python3 sim.py`. To leave an
+agent's job alone (say, one a scheduler of its own already keeps in check), start it with `AV_GENTLE=0`.
 
 **Privacy and permissions:** it needs no special macOS permissions. It reads only how long the keyboard and mouse have
 been idle, never what you type or where you click. The phone switch goes through a public relay, [ntfy.sh](https://ntfy.sh), on a
