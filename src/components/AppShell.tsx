@@ -257,7 +257,7 @@ export function AppShell({
           <div className="mx-auto flex max-w-[1480px] flex-col gap-3 px-4 py-3 sm:px-6 lg:px-8">
             <div className="flex items-center gap-3">
               <a href="#/" className="shrink-0 lg:hidden" aria-label="Agent Visualiser home">
-                <Logo size={36} />
+                <Logo size={44} />
               </a>
               <div className="min-w-0 flex-1">
                 <h1 className="truncate text-[26px] font-bold leading-tight tracking-[-0.025em] lg:text-[19px] lg:font-semibold">{title}</h1>
