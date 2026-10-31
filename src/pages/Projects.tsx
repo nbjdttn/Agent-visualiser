@@ -7,7 +7,7 @@ import { compact, relative, usd } from '../lib/format';
 import { href, navigate } from '../lib/router';
 import { useData, useFilters } from '../lib/store';
 import { ChartCard } from '../components/ChartCard';
-import { CalendarCard, projectSegments, projectSubtitle, SimpleTable } from '../components/cards';
+import { projectSegments, projectSubtitle, SimpleTable } from '../components/cards';
 import { BarList } from '../components/charts/BarList';
 import { SegmentedBar } from '../components/charts/SegmentedBar';
 import { Sparkline } from '../components/charts/Sparkline';
@@ -37,8 +37,6 @@ export function ProjectsPage({ data }: { data: Data }) {
   const { filters, range } = useFilters();
   const [q, setQ] = useState('');
   const [showAll, setShowAll] = useState(false);
-  const dayFacts = useMemo(() => applyFilters(data, filters, range), [data, filters, range]);
-  const daySessions = useMemo(() => filterSessions(data, filters, range), [data, filters, range]);
   const facts = useMemo(() => applyFilters(data, filters, range, { project: false }), [data, filters, range]);
   const sessions = useMemo(() => filterSessions(data, { ...filters, project: null }, range), [data, filters, range]);
 
@@ -209,8 +207,6 @@ export function ProjectsPage({ data }: { data: Data }) {
         height={220}
         simple
       />
-
-      <CalendarCard facts={dayFacts} range={range} sessions={daySessions} refetching={refetching} />
 
       <Card className={`p-4 sm:p-5 ${refetching ? 'refetching' : ''}`}>
         <button type="button" onClick={() => setShowAll((v) => !v)} className="flex w-full items-center justify-between gap-3 text-left" aria-expanded={showAll}>
