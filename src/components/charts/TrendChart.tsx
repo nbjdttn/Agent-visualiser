@@ -82,17 +82,17 @@ export function TrendChart({
               y.ticks(3).map((t) => (
                 <g key={t} transform={`translate(0,${y(t)})`}>
                   <line x1={0} x2={plotW} style={{ stroke: 'var(--grid)' }} strokeWidth={1} />
-                  <text x={-8} dy="0.32em" textAnchor="end" className="tnum" style={{ fill: 'var(--muted)', fontSize: 11 }}>
+                  <text x={-8} dy="0.32em" textAnchor="end" className="tnum" style={{ fill: 'var(--muted)', fontSize: 12 }}>
                     {format(t)}
                   </text>
                 </g>
               ))}
             {axis && n > 1 && (
               <>
-                <text x={0} y={plotH + 15} style={{ fill: 'var(--muted)', fontSize: 11 }}>
+                <text x={0} y={plotH + 15} style={{ fill: 'var(--muted)', fontSize: 12 }}>
                   {labels[0]}
                 </text>
-                <text x={plotW} y={plotH + 15} textAnchor="end" style={{ fill: 'var(--muted)', fontSize: 11 }}>
+                <text x={plotW} y={plotH + 15} textAnchor="end" style={{ fill: 'var(--muted)', fontSize: 12 }}>
                   {labels[n - 1]}
                 </text>
               </>

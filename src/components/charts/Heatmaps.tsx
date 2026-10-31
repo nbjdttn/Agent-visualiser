@@ -17,7 +17,7 @@ export function quantileLevels(values: number[], levels = 6): (v: number) => num
 
 export function ScaleLegend() {
   return (
-    <div className="flex items-center gap-1.5 text-[11px] text-muted" aria-hidden>
+    <div className="flex items-center gap-1.5 text-[12px] text-muted" aria-hidden>
       <span>Less</span>
       {SEQ.map((c) => (
         <span key={c} className="inline-block h-2.5 w-2.5 rounded-[3px]" style={{ background: c }} />
@@ -77,7 +77,7 @@ function MonthGrid({
       {width > 0 && (
         <svg width={width} height={height} role="img" aria-label="Daily activity calendar" className="block">
           {WEEKDAY_SHORT.map((d, i) => (
-            <text key={d} x={i * (cellW + gap) + 2} y={12} style={{ fill: 'var(--muted)', fontSize: 11 }}>
+            <text key={d} x={i * (cellW + gap) + 2} y={12} style={{ fill: 'var(--muted)', fontSize: 12 }}>
               {d}
             </text>
           ))}
@@ -174,12 +174,12 @@ function YearStrip({
       {width > 0 && (
         <svg width={width} height={height} role="img" aria-label="Daily activity calendar" className="block">
           {monthMarks.map((m) => (
-            <text key={m.col} x={left + m.col * step} y={11} style={{ fill: 'var(--muted)', fontSize: 11 }}>
+            <text key={m.col} x={left + m.col * step} y={11} style={{ fill: 'var(--muted)', fontSize: 12 }}>
               {m.label}
             </text>
           ))}
           {[0, 2, 4].map((r) => (
-            <text key={r} x={0} y={top + r * step + cell / 2} dy="0.32em" style={{ fill: 'var(--muted)', fontSize: 10.5 }}>
+            <text key={r} x={0} y={top + r * step + cell / 2} dy="0.32em" style={{ fill: 'var(--muted)', fontSize: 12 }}>
               {WEEKDAY_SHORT[r]}
             </text>
           ))}
@@ -240,7 +240,7 @@ export function HourHeatmap({ matrix, format }: { matrix: number[][]; format: (v
       {width > 0 && (
         <svg width={width} height={height} role="img" aria-label="Activity by weekday and hour" className="block">
           {WEEKDAY_SHORT.map((d, r) => (
-            <text key={d} x={0} y={r * (cellH + gap) + cellH / 2} dy="0.32em" style={{ fill: 'var(--muted)', fontSize: 10.5 }}>
+            <text key={d} x={0} y={r * (cellH + gap) + cellH / 2} dy="0.32em" style={{ fill: 'var(--muted)', fontSize: 12 }}>
               {d}
             </text>
           ))}
@@ -269,7 +269,7 @@ export function HourHeatmap({ matrix, format }: { matrix: number[][]; format: (v
               key={h}
               x={left + h * (cellW + gap)}
               y={7 * (cellH + gap) + 12}
-              style={{ fill: 'var(--muted)', fontSize: 10.5 }}
+              style={{ fill: 'var(--muted)', fontSize: 12 }}
             >
               {hourLabel(h)}
             </text>

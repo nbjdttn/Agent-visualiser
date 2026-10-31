@@ -492,13 +492,37 @@ export function useDrawer(): DrawerState {
 // Theme
 // ---------------------------------------------------------------------------
 
-export type ThemePref = 'system' | 'light' | 'dark';
+export type ThemePref = 'system' | 'light' | 'dark' | 'midnight' | 'paper';
+export const THEMES: { id: ThemePref; label: string; page: string; surface: string; accent: string }[] = [
+  { id: 'system', label: 'Match iPhone', page: 'linear-gradient(135deg,#f4f4f1 50%,#0d0d0d 50%)', surface: '#fcfcfb', accent: '#2a78d6' },
+  { id: 'light', label: 'Light', page: '#f4f4f1', surface: '#fcfcfb', accent: '#2a78d6' },
+  { id: 'dark', label: 'Dark', page: '#0d0d0d', surface: '#1a1a19', accent: '#3987e5' },
+  { id: 'midnight', label: 'Midnight', page: '#0b0a10', surface: '#15131c', accent: '#8f7bff' },
+  { id: 'paper', label: 'Paper', page: '#f3eee6', surface: '#fbf8f3', accent: '#c4572a' },
+];
+const THEME_IDS = THEMES.map((t) => t.id);
+
+/** Keep the iPhone status bar in the page colour. */
+function applyStatusBar(t: ThemePref) {
+  const theme = THEMES.find((x) => x.id === t);
+  document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach((m) => {
+    const media = m.getAttribute('data-media') ?? m.getAttribute('media');
+    if (media) m.setAttribute('data-media', media);
+    if (t === 'system' || !theme) {
+      if (media) m.setAttribute('media', media);
+      m.content = media?.includes('dark') ? '#0d0d0d' : '#f4f4f1';
+    } else {
+      m.removeAttribute('media');
+      m.content = theme.page;
+    }
+  });
+}
 
 export function useTheme(): [ThemePref, (t: ThemePref) => void] {
   const [pref, setPref] = useState<ThemePref>(() => {
     try {
-      const t = localStorage.getItem('av.theme');
-      return t === 'light' || t === 'dark' ? t : 'system';
+      const t = localStorage.getItem('av.theme') as ThemePref | null;
+      return t && THEME_IDS.includes(t) ? t : 'system';
     } catch {
       return 'system';
     }
@@ -513,6 +537,8 @@ export function useTheme(): [ThemePref, (t: ThemePref) => void] {
     }
     if (t === 'system') document.documentElement.removeAttribute('data-theme');
     else document.documentElement.setAttribute('data-theme', t);
+    applyStatusBar(t);
   }, []);
+  useEffect(() => applyStatusBar(pref), [pref]);
   return [pref, set];
 }

@@ -1,17 +1,7 @@
 import { useMemo } from 'react';
 import { PROVIDER_LABEL, SOURCE_META, type ProjectInfo, type Provider, type SessionInfo } from '../../shared/types';
 import { PROVIDER_COLOR } from '../lib/colors';
-import {
-  addInto,
-  dailyTotals,
-  emptyTotals,
-  groupBy,
-  hourMatrix,
-  type Data,
-  type Fact,
-  type Range,
-  type Totals,
-} from '../lib/data';
+import { addInto, dailyTotals, emptyTotals, groupBy, hourMatrix, type Data, type Fact, type Range, type Totals, isUnknownModel, isUnknownProject } from '../lib/data';
 import { compact, dayLabel, duration, monthLabel, pct, relative, usd } from '../lib/format';
 import { href } from '../lib/router';
 import { useDrawer, useFilters } from '../lib/store';
@@ -46,6 +36,7 @@ export function ModelsCard({ data, facts, refetching }: { data: Data; facts: Fac
   const items: BarItem[] = useMemo(() => {
     const by = groupBy(facts, (f) => f.model);
     return [...by.entries()]
+      .filter(([i]) => !isUnknownModel(data.models[i]))
       .sort((a, b) => b[1].tokens - a[1].tokens)
       .map(([i, t]) => {
         const m = data.models[i];
@@ -89,6 +80,7 @@ export function ProjectsCard({ data, facts, refetching }: { data: Data; facts: F
     const by = groupBy(facts, (f) => f.proj);
     const split = projectSegments(facts);
     return [...by.entries()]
+      .filter(([i]) => !isUnknownProject(data.projects[i]))
       .sort((a, b) => b[1].tokens - a[1].tokens)
       .map(([i, t]) => {
         const p = data.projects[i];
@@ -111,7 +103,7 @@ export function ProjectsCard({ data, facts, refetching }: { data: Data; facts: F
       title="Projects"
       refetching={refetching}
       actions={
-        <a href="#/projects" className="text-[12px] font-medium text-ink-2 hover:text-ink">
+        <a href="#/projects" className="text-[14px] font-medium text-ink-2 hover:text-ink lg:text-[12px]">
           All projects →
         </a>
       }
@@ -336,7 +328,7 @@ export function RecentSessionsCard({ data, sessions, refetching }: { data: Data;
         title="Recent sessions & chats"
         subtitle={`${sessions.length.toLocaleString('en-US')} in this period`}
         actions={
-          <a href="#/sessions" className="text-[12px] font-medium text-ink-2 hover:text-ink">
+          <a href="#/sessions" className="text-[14px] font-medium text-ink-2 hover:text-ink lg:text-[12px]">
             All sessions →
           </a>
         }

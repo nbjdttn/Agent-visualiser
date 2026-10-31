@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
     <meta name="description" content="Your Claude and OpenAI usage: tokens, models and projects by day and month." />
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f4f4f1" />
@@ -20,12 +20,16 @@
       // Apply the saved theme before first paint so there is no flash.
       try {
         var t = localStorage.getItem('av.theme');
-        if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+        if (['light', 'dark', 'midnight', 'paper'].indexOf(t) >= 0) document.documentElement.setAttribute('data-theme', t);
       } catch (e) {}
     </script>
   </head>
   <body>
     <div id="root"></div>
+    <div class="rotate-note" aria-hidden="true">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg>
+      Turn your phone upright
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

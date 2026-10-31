@@ -58,7 +58,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
+  :root:not([data-theme]) {
     color-scheme: dark;
     --page: #0d0d0d;
     --surface: #1a1a19;
@@ -147,6 +147,86 @@
   --good-text: #0ca30c;
 }
 
+/* Midnight: the deep violet-black of the app icon. */
+:root[data-theme='midnight'] {
+  color-scheme: dark;
+  --page: #0b0a10;
+  --surface: #15131c;
+  --surface-2: #1d1a26;
+  --surface-3: #262233;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --text: #f4f2f8;
+  --text-2: #c6c1d4;
+  --muted: #8d879c;
+  --grid: #25212f;
+  --baseline: #3a3547;
+  --focus: #8f7bff;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 12px 40px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.45);
+
+  /* The dark theme's validated chart colours (they pass on this surface too). */
+  --anthropic: #d95926;
+  --openai: #199e70;
+  --s1: #3987e5;
+  --s2: #d55181;
+  --s3: #9085e9;
+  --s4: #c98500;
+  --s5: #008300;
+  --s6: #e66767;
+
+  --seq-0: #1d1a26;
+  --seq-1: #2b2459;
+  --seq-2: #3a2f7e;
+  --seq-3: #5140b0;
+  --seq-4: #6d5ad6;
+  --seq-5: #8f7bff;
+  --seq-6: #b7a9ff;
+  --seq-ink-0: #8d879c;
+  --seq-ink-1: #f4f2f8;
+  --seq-ink-2: #f4f2f8;
+  --seq-ink-3: #ffffff;
+  --seq-ink-4: #ffffff;
+  --seq-ink-5: #0b0a10;
+  --seq-ink-6: #0b0a10;
+
+  --good-text: #2fc48d;
+}
+
+/* Paper: warm and soft. */
+:root[data-theme='paper'] {
+  color-scheme: light;
+  --page: #f3eee6;
+  --surface: #fbf8f3;
+  --surface-2: #f2ece2;
+  --surface-3: #e9e1d4;
+  --border: rgba(70, 50, 25, 0.1);
+  --border-strong: rgba(70, 50, 25, 0.18);
+  --text: #1f1b16;
+  --text-2: #5b5349;
+  --muted: #8e8578;
+  --grid: #e7dfd2;
+  --baseline: #cfc4b3;
+  --focus: #c4572a;
+  --shadow: 0 1px 2px rgba(70, 50, 25, 0.05), 0 4px 16px rgba(70, 50, 25, 0.05);
+  --shadow-pop: 0 10px 40px rgba(70, 50, 25, 0.16), 0 2px 6px rgba(70, 50, 25, 0.08);
+
+  --seq-0: #ebe4d8;
+  --seq-1: #f6d7c4;
+  --seq-2: #efb593;
+  --seq-3: #e59366;
+  --seq-4: #d6733f;
+  --seq-5: #b85a2b;
+  --seq-6: #8f4420;
+  --seq-ink-0: #8e8578;
+  --seq-ink-1: #1f1b16;
+  --seq-ink-2: #1f1b16;
+  --seq-ink-3: #1f1b16;
+  --seq-ink-4: #ffffff;
+  --seq-ink-5: #ffffff;
+  --seq-ink-6: #ffffff;
+}
+
 @theme {
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
@@ -168,6 +248,35 @@
   --color-serious: var(--serious);
   --color-critical: var(--critical);
   --color-live: var(--live);
+}
+
+html {
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Portrait only: on a phone turned sideways, ask to turn it back. */
+.rotate-note {
+  display: none;
+}
+@media (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
+  #root {
+    display: none;
+  }
+  .rotate-note {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 14px;
+    background: var(--page);
+    color: var(--text-2);
+    font: 500 16px/1.4 var(--font-sans);
+    text-align: center;
+  }
 }
 
 html,
@@ -209,38 +318,14 @@ body {
   box-shadow: var(--shadow);
 }
 
-/* The dark feature card that matches the app icon, in both themes. */
+/* The headline card: the page's own surface with a soft glow of the two provider colours. */
 .hero-card {
   background:
-    radial-gradient(120% 90% at 0% 0%, rgba(255, 163, 108, 0.16), transparent 55%),
-    radial-gradient(90% 80% at 100% 100%, rgba(95, 240, 180, 0.1), transparent 60%),
-    linear-gradient(145deg, #2a2733, #0c0b10);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 18px 40px -20px rgba(0, 0, 0, 0.6);
-  color-scheme: dark;
-  --surface: #1c1a22;
-  --surface-2: rgba(255, 255, 255, 0.07);
-  --border: rgba(255, 255, 255, 0.09);
-  --border-strong: rgba(255, 255, 255, 0.18);
-  --text: #f6f5f2;
-  --text-2: #c9c7d1;
-  --muted: #8f8c99;
-  --grid: rgba(255, 255, 255, 0.07);
-  --anthropic: #f07a45;
-  --openai: #2fc48d;
-  --shadow-pop: 0 12px 40px rgba(0, 0, 0, 0.55), 0 2px 6px rgba(0, 0, 0, 0.4);
-  /* Tailwind's colour aliases are resolved at the root, so set them here too. */
-  --color-ink: #f6f5f2;
-  --color-ink-2: #c9c7d1;
-  --color-muted: #8f8c99;
-  --color-surface: #1c1a22;
-  --color-surface-2: rgba(255, 255, 255, 0.07);
-  --color-line: rgba(255, 255, 255, 0.09);
-  --color-line-strong: rgba(255, 255, 255, 0.18);
-  --color-anthropic: #f07a45;
-  --color-openai: #2fc48d;
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--anthropic) 10%, transparent), transparent 60%),
+    radial-gradient(100% 90% at 100% 100%, color-mix(in srgb, var(--openai) 9%, transparent), transparent 60%),
+    var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
 }
 
 .ring-arc {

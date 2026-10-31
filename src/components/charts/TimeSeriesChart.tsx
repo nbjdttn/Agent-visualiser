@@ -128,7 +128,7 @@ export function TimeSeriesChart({ buckets, series, kind, height = 260, format, a
             {ticks.map((t) => (
               <g key={t} transform={`translate(0,${y(t)})`}>
                 <line x1={0} x2={plotW} style={{ stroke: t === 0 ? 'var(--baseline)' : 'var(--grid)' }} strokeWidth={1} />
-                <text x={-10} dy="0.32em" textAnchor="end" className="tnum" style={{ fill: 'var(--muted)', fontSize: 11 }}>
+                <text x={-10} dy="0.32em" textAnchor="end" className="tnum" style={{ fill: 'var(--muted)', fontSize: 12 }}>
                   {tickFmt(t)}
                 </text>
               </g>
@@ -225,7 +225,7 @@ export function TimeSeriesChart({ buckets, series, kind, height = 260, format, a
                   x={center(i)}
                   y={plotH + 17}
                   textAnchor={i === 0 && kind === 'area' ? 'start' : 'middle'}
-                  style={{ fill: 'var(--muted)', fontSize: 11 }}
+                  style={{ fill: 'var(--muted)', fontSize: 12 }}
                 >
                   {b.short}
                 </text>

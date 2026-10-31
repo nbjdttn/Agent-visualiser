@@ -2,9 +2,10 @@ import { AlertCircle, ChevronDown } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { PROVIDER_LABEL } from '../../shared/types';
 import { OTHER_COLOR, PROVIDER_COLOR, slotColor } from '../lib/colors';
-import { applyFilters, cacheHitRate, groupBy, type Data, type Totals } from '../lib/data';
+import { applyFilters, cacheHitRate, filterSessions, groupBy, isUnknownModel, type Data, type Totals } from '../lib/data';
 import { compact, pct, usd } from '../lib/format';
 import { useData, useFilters } from '../lib/store';
+import { CalendarCard } from '../components/cards';
 import { ChartCard } from '../components/ChartCard';
 import { BarList } from '../components/charts/BarList';
 import { SegmentedBar } from '../components/charts/SegmentedBar';
@@ -25,11 +26,13 @@ export function ModelsPage({ data }: { data: Data }) {
   const { refetching } = useData();
   const { filters, range, setFilters } = useFilters();
   const [showAll, setShowAll] = useState(false);
+  const dayFacts = useMemo(() => applyFilters(data, filters, range), [data, filters, range]);
+  const sessions = useMemo(() => filterSessions(data, filters, range), [data, filters, range]);
   const facts = useMemo(() => applyFilters(data, filters, range, { model: false }), [data, filters, range]);
   const rows: Row[] = useMemo(() => {
     const by = groupBy(facts, (f) => f.model);
     const total = [...by.values()].reduce((s, t) => s + t.tokens, 0) || 1;
-    return [...by.entries()].map(([i, t]) => ({ m: data.models[i], t, share: t.tokens / total }));
+    return [...by.entries()].filter(([i]) => !isUnknownModel(data.models[i])).map(([i, t]) => ({ m: data.models[i], t, share: t.tokens / total }));
   }, [data, facts]);
 
   const columns: Column<Row>[] = [
@@ -105,6 +108,8 @@ export function ModelsPage({ data }: { data: Data }) {
         defaultSplit="model"
         refetching={refetching}
       />
+      <CalendarCard facts={dayFacts} range={range} sessions={sessions} refetching={refetching} />
+
       <div className="grid gap-4 lg:grid-cols-2 lg:gap-5">
         <ChartCard title="Share of tokens" refetching={refetching}>
           <SegmentedBar

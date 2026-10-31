@@ -16,3 +16,8 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js').catch(() => undefined);
   });
 }
+
+// No pinch-zoom on iPhone (Safari ignores user-scalable=no on its own).
+for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
+  document.addEventListener(type, (e) => e.preventDefault(), { passive: false });
+}

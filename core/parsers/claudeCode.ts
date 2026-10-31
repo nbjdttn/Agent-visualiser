@@ -80,9 +80,20 @@ function promptText(content: unknown): string | undefined {
   }
   const t = text?.trim();
   if (!t) return undefined;
+  const cmd = /<command-name>\s*\/?([^<\s]+)\s*<\/command-name>/.exec(t);
+  if (cmd) {
+    if (BUILTIN_COMMANDS.has(cmd[1])) return undefined;
+    const args = /<command-args>([\s\S]*?)<\/command-args>/.exec(t)?.[1]?.trim();
+    return `/${cmd[1]}${args ? ` ${args}` : ''}`;
+  }
   if (t.startsWith('<') || t.startsWith('Caveat:') || t.startsWith('[Request interrupted')) return undefined;
   return t;
 }
+
+/** Claude Code's own commands say nothing about what a session was for. */
+const BUILTIN_COMMANDS = new Set(
+  'clear compact resume continue model exit quit login logout config cost help status context permissions mcp memory agents hooks ide doctor rewind export usage add-dir remote-control init theme vim terminal-setup bug feedback release-notes upgrade privacy-settings statusline output-style todos bashes plugin plugins'.split(' '),
+);
 
 /** Recognise a Claude Code transcript from one of its lines. */
 export function looksLikeClaudeCodeLine(line: string): boolean {

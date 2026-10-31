@@ -36,7 +36,7 @@ export function Legend({
               else onChange(new Set(series.filter((x) => x.key !== s.key).map((x) => x.key)));
             }}
             className={clsx(
-              'group inline-flex items-center gap-1.5 rounded-md text-[12px] transition-opacity',
+              'group inline-flex min-h-[32px] items-center gap-2 rounded-md text-[14px] transition-opacity lg:min-h-0 lg:gap-1.5 lg:text-[12px]',
               off ? 'opacity-40 hover:opacity-70' : 'opacity-100',
             )}
           >

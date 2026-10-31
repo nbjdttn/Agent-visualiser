@@ -118,7 +118,7 @@ export function BiggestSessionsCard({ data, sessions, refetching }: { data: Data
       title="Biggest sessions"
       refetching={refetching}
       actions={
-        <a href="#/sessions" className="text-[12px] font-medium text-ink-2 hover:text-ink">
+        <a href="#/sessions" className="text-[14px] font-medium text-ink-2 hover:text-ink lg:text-[12px]">
           All →
         </a>
       }

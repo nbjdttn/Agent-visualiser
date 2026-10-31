@@ -30,7 +30,7 @@ export function ChartCard({
 }) {
   const [showTable, setShowTable] = useState(false);
   return (
-    <Card className={clsx('flex flex-col p-4 sm:p-5', className)}>
+    <Card className={clsx('flex min-w-0 flex-col p-4 sm:p-5', className)}>
       <CardHeader
         title={title}
         subtitle={subtitle}
@@ -42,12 +42,12 @@ export function ChartCard({
                 <button
                   type="button"
                   onClick={() => setShowTable((s) => !s)}
-                  className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-ink-2 hover:bg-surface-2 hover:text-ink"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-ink-2 hover:bg-surface-2 hover:text-ink lg:h-7 lg:w-7 lg:rounded-lg"
                   title={showTable ? 'Show chart' : 'Show as table'}
                   aria-label={showTable ? 'Show chart' : 'Show as table'}
                   aria-pressed={showTable}
                 >
-                  {showTable ? <BarChart3 size={15} /> : <Table2 size={15} />}
+                  {showTable ? <BarChart3 size={18} /> : <Table2 size={18} />}
                 </button>
               )}
             </>

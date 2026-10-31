@@ -1,9 +1,10 @@
 import clsx from 'clsx';
-import { Activity, Cpu, Database, FolderKanban, LayoutDashboard, Monitor, Moon, RotateCw, ScrollText, Sun, Upload } from 'lucide-react';
+import { Activity, Cpu, Database, FolderKanban, LayoutDashboard, Palette, RotateCw, ScrollText, Upload } from 'lucide-react';
 import { useId, useState, type ReactNode } from 'react';
 import { compact, usd } from '../lib/format';
 import { href, type Route } from '../lib/router';
-import { useData, useTheme, type ThemePref } from '../lib/store';
+import { THEMES, useData, useTheme } from '../lib/store';
+import { Popover } from './Popover';
 import { ProviderDot } from './ui';
 
 interface NavItem {
@@ -163,11 +164,11 @@ function TabBar({ route }: { route: Route }) {
               href={href(item.route)}
               aria-current={active ? 'page' : undefined}
               className={clsx(
-                'flex min-h-[54px] flex-1 flex-col items-center justify-center gap-1 text-[10.5px] font-medium',
+                'flex min-h-[58px] flex-1 flex-col items-center justify-center gap-1 text-[12px] font-medium',
                 active ? 'text-ink' : 'text-muted',
               )}
             >
-              <Icon size={21} strokeWidth={active ? 2.3 : 1.9} aria-hidden />
+              <Icon size={24} strokeWidth={active ? 2.3 : 1.9} aria-hidden />
               {item.short}
             </a>
           );
@@ -179,19 +180,49 @@ function TabBar({ route }: { route: Route }) {
 
 function ThemeToggle() {
   const [pref, setPref] = useTheme();
-  const next: Record<ThemePref, ThemePref> = { system: 'light', light: 'dark', dark: 'system' };
-  const Icon = pref === 'light' ? Sun : pref === 'dark' ? Moon : Monitor;
-  const label = pref === 'system' ? 'Theme: match system' : pref === 'light' ? 'Theme: light' : 'Theme: dark';
   return (
-    <button
-      type="button"
-      onClick={() => setPref(next[pref])}
-      className="inline-flex h-10 w-10 items-center justify-center rounded-[12px] border border-line bg-surface text-ink-2 hover:text-ink lg:h-9 lg:w-9 lg:rounded-[10px]"
-      title={label}
-      aria-label={label}
+    <Popover
+      label="Appearance"
+      align="right"
+      width={250}
+      trigger={() => (
+        <span className="inline-flex h-10 w-10 items-center justify-center rounded-[12px] border border-line bg-surface text-ink-2 hover:text-ink lg:h-9 lg:w-9 lg:rounded-[10px]">
+          <Palette size={18} aria-hidden />
+        </span>
+      )}
     >
-      <Icon size={16} />
-    </button>
+      {(close) => (
+        <div role="menu" aria-label="Appearance" className="flex flex-col gap-0.5">
+          <div className="px-2.5 pb-1.5 pt-1 text-[12px] font-semibold uppercase tracking-[0.06em] text-muted">Appearance</div>
+          {THEMES.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="menuitemradio"
+              aria-checked={pref === t.id}
+              onClick={() => {
+                setPref(t.id);
+                close();
+              }}
+              className={clsx(
+                'flex min-h-[48px] w-full items-center gap-3 rounded-xl px-2.5 text-left text-[15px] text-ink hover:bg-surface-2 lg:min-h-[40px] lg:text-[14px]',
+                pref === t.id && 'bg-surface-2',
+              )}
+            >
+              <span aria-hidden className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full border border-line-strong" style={{ background: t.page }}>
+                <span className="absolute bottom-1 right-1 h-2.5 w-2.5 rounded-full" style={{ background: t.accent }} />
+              </span>
+              <span className="flex-1">{t.label}</span>
+              {pref === t.id && (
+                <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+                  <path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </Popover>
   );
 }
 

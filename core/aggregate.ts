@@ -52,6 +52,13 @@ export function prettyModel(id: string): string {
   return id;
 }
 
+/** A readable name for a session that never got a title: where and when it ran. */
+export function fallbackTitle(project: ProjectInfo | undefined, start: number, subagent: boolean): string {
+  const where = project && project.key !== 'dir:unknown' ? project.name : 'Session';
+  const when = new Date(start).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return `${subagent ? 'Sub-agents · ' : ''}${where} · ${when}`;
+}
+
 export const tokensOf = (e: { input: number; output: number; cacheRead: number; cacheWrite: number }) =>
   e.input + e.output + e.cacheRead + e.cacheWrite;
 
@@ -184,7 +191,7 @@ export function buildDataset(args: {
       id: meta?.id ?? key.split(':').slice(1).join(':'),
       src: sourceIndex.get(first.source)!,
       proj: projectIndex.get(meta?.projectKey ?? first.projectKey) ?? projectIndex.get(first.projectKey)!,
-      title: meta?.title ?? '',
+      title: meta?.title || fallbackTitle(projects[projectIndex.get(meta?.projectKey ?? first.projectKey) ?? projectIndex.get(first.projectKey)!], Math.min(meta?.firstTs ?? first.ts, first.ts), list.every((e) => e.sidechain)),
       start: Math.min(meta?.firstTs ?? first.ts, first.ts),
       end: Math.max(meta?.lastTs ?? 0, list[list.length - 1].ts),
       models: [],

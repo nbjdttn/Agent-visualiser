@@ -347,6 +347,10 @@ export function rangeRanks(data: Data, range: Range, key: 'model' | 'proj'): Map
   return ranks;
 }
 
+/** Models and folders the logs didn't name: kept in totals, left out of lists (they fold into "Other"). */
+export const isUnknownModel = (m?: ModelInfo) => !m || m.id === 'unknown' || m.id === '<synthetic>';
+export const isUnknownProject = (p?: ProjectInfo) => !p || p.key === 'dir:unknown';
+
 export function splitSeries(data: Data, facts: Fact[], split: Split, range?: Range): SplitResult {
   if (split === 'provider') {
     const present = new Set(facts.map((f) => f.provider));
@@ -387,8 +391,9 @@ export function splitSeries(data: Data, facts: Fact[], split: Split, range?: Ran
   const rankOf = (i: number) => ranks.get(i) ?? Infinity;
   const present = new Set(facts.map((f) => (isModel ? f.model : f.proj)));
   const ranked = [...present].sort((a, b) => rankOf(a) - rankOf(b));
-  const named = ranked.filter((i) => rankOf(i) < 6);
-  const hasOther = ranked.some((i) => rankOf(i) >= 6);
+  const unknown = (i: number) => (isModel ? isUnknownModel(data.models[i]) : isUnknownProject(data.projects[i]));
+  const named = ranked.filter((i) => rankOf(i) < 6 && !unknown(i));
+  const hasOther = ranked.some((i) => rankOf(i) >= 6 || unknown(i));
   const series: SeriesDef[] = named.map((i) => {
     if (isModel) {
       const m = data.models[i];

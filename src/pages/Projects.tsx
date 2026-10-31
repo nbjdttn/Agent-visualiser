@@ -2,12 +2,12 @@ import { ChevronDown, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { PROVIDER_LABEL, type Provider, type SourceId } from '../../shared/types';
 import { PROVIDER_COLOR } from '../lib/colors';
-import { applyFilters, filterSessions, groupBy, sparkValues, type Data } from '../lib/data';
+import { applyFilters, filterSessions, groupBy, isUnknownProject, sparkValues, type Data } from '../lib/data';
 import { compact, relative, usd } from '../lib/format';
 import { href, navigate } from '../lib/router';
 import { useData, useFilters } from '../lib/store';
 import { ChartCard } from '../components/ChartCard';
-import { projectSegments, projectSubtitle, ProjectsCard, SimpleTable } from '../components/cards';
+import { CalendarCard, projectSegments, projectSubtitle, ProjectsCard, SimpleTable } from '../components/cards';
 import { SegmentedBar } from '../components/charts/SegmentedBar';
 import { Sparkline } from '../components/charts/Sparkline';
 import { Treemap } from '../components/charts/Treemap';
@@ -36,6 +36,8 @@ export function ProjectsPage({ data }: { data: Data }) {
   const { filters, range } = useFilters();
   const [q, setQ] = useState('');
   const [showAll, setShowAll] = useState(false);
+  const dayFacts = useMemo(() => applyFilters(data, filters, range), [data, filters, range]);
+  const daySessions = useMemo(() => filterSessions(data, filters, range), [data, filters, range]);
   const facts = useMemo(() => applyFilters(data, filters, range, { project: false }), [data, filters, range]);
   const sessions = useMemo(() => filterSessions(data, { ...filters, project: null }, range), [data, filters, range]);
 
@@ -60,7 +62,7 @@ export function ProjectsPage({ data }: { data: Data }) {
       sessionCount.set(s.proj, (sessionCount.get(s.proj) ?? 0) + 1);
       lastSession.set(s.proj, Math.max(lastSession.get(s.proj) ?? 0, s.end));
     }
-    return [...totals.entries()].map(([idx, t]) => {
+    return [...totals.entries()].filter(([idx]) => !isUnknownProject(data.projects[idx])).map(([idx, t]) => {
       const p = data.projects[idx];
       return {
         idx,
@@ -189,6 +191,8 @@ export function ProjectsPage({ data }: { data: Data }) {
         refetching={refetching}
         height={220}
       />
+
+      <CalendarCard facts={dayFacts} range={range} sessions={daySessions} refetching={refetching} />
 
       <ProjectsCard data={data} facts={facts} refetching={refetching} />
 

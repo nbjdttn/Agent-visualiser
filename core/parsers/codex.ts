@@ -246,6 +246,8 @@ export async function parseCodexLines(
   }
 
   const events = records.length ? records : counted;
+  const firstModel = [...turnModels.values()][0] ?? (model !== 'unknown' ? model : undefined);
+  if (firstModel) for (const e of events) if (e.model === 'unknown') e.model = firstModel;
   let session: SessionMeta | undefined;
   if (events.length || prompts.size) {
     const start = firstTs ?? file.mtimeMs;

@@ -27,8 +27,8 @@ export function CardHeader({
   return (
     <div className={clsx('flex flex-wrap items-start justify-between gap-x-4 gap-y-2', className)}>
       <div className="min-w-0">
-        <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ink">{title}</h2>
-        {subtitle && <p className="mt-0.5 text-[13px] text-muted">{subtitle}</p>}
+        <h2 className="text-[17px] font-semibold tracking-[-0.01em] text-ink lg:text-[15px]">{title}</h2>
+        {subtitle && <p className="mt-0.5 text-[14px] text-muted lg:text-[13px]">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>

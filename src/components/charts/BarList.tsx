@@ -44,17 +44,17 @@ export function BarList({
               <div className="flex min-w-0 items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
                   {item.icon}
-                  <span className="truncate text-[13px] font-medium text-ink" title={item.title}>
+                  <span className="truncate text-[15px] font-medium text-ink lg:text-[13px]" title={item.title}>
                     {item.label}
                   </span>
                   {item.sublabel && <span className="hidden truncate text-[12px] text-muted sm:inline">{item.sublabel}</span>}
                 </div>
                 <div className="flex shrink-0 items-baseline gap-2">
-                  {item.secondary && <span className="tnum text-[12px] text-muted">{item.secondary}</span>}
-                  <span className="tnum text-[13px] font-semibold text-ink">{item.display}</span>
+                  {item.secondary && <span className="tnum text-[13px] text-muted lg:text-[12px]">{item.secondary}</span>}
+                  <span className="tnum text-[15px] font-semibold text-ink lg:text-[13px]">{item.display}</span>
                 </div>
               </div>
-              <div className="mt-1.5 h-[6px] w-full rounded-full bg-surface-2">
+              <div className="mt-2 h-[8px] w-full rounded-full bg-surface-2 lg:mt-1.5 lg:h-[6px]">
                 {item.segments && item.segments.filter((s) => s.value > 0).length > 1 ? (
                   <div
                     className="flex h-full gap-[2px] transition-[width] duration-500 ease-out"
@@ -91,7 +91,7 @@ export function BarList({
                   onClick={() => onSelect(item.key)}
                   aria-pressed={item.active}
                   className={clsx(
-                    'w-full rounded-[10px] px-2.5 py-2 text-left transition-colors hover:bg-surface-2',
+                    'w-full rounded-[12px] px-2.5 py-2.5 text-left transition-colors hover:bg-surface-2 lg:py-2',
                     item.active && 'bg-surface-2 ring-1 ring-line-strong',
                   )}
                 >
@@ -108,7 +108,7 @@ export function BarList({
         <button
           type="button"
           onClick={() => setExpanded((e) => !e)}
-          className="mt-1 px-2.5 text-[12px] font-medium text-ink-2 hover:text-ink"
+          className="mt-1 px-2.5 py-2 text-[14px] font-medium text-ink-2 hover:text-ink lg:py-0 lg:text-[12px]"
         >
           {expanded ? 'Show less' : `Show all ${items.length}`}
         </button>

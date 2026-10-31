@@ -34,7 +34,7 @@ export function StatTile({
   return (
     <div className="card flex min-w-0 flex-col justify-between gap-2 p-4">
       <div className="flex items-start justify-between gap-2">
-        <span className="inline-flex min-w-0 items-center gap-1.5 text-[12.5px] font-medium leading-tight text-ink-2">
+        <span className="inline-flex min-w-0 items-center gap-1.5 text-[14px] font-medium leading-tight text-ink-2 lg:text-[12.5px]">
           {icon}
           {label}
         </span>
@@ -44,9 +44,9 @@ export function StatTile({
           </span>
         )}
       </div>
-      <div className="whitespace-nowrap text-[24px] font-semibold leading-none tracking-[-0.02em]">{value}</div>
+      <div className="whitespace-nowrap text-[28px] font-semibold leading-none tracking-[-0.02em] lg:text-[24px]">{value}</div>
       {spark && spark.length > 1 && <FluidSparkline values={spark} />}
-      {hint && <div className="truncate text-[12px] text-muted">{hint}</div>}
+      {hint && <div className="truncate text-[13px] text-muted lg:text-[12px]">{hint}</div>}
     </div>
   );
 }
