@@ -518,6 +518,39 @@ function applyStatusBar(t: ThemePref) {
   });
 }
 
+export type PaletteId = 'classic' | 'ocean' | 'sunset' | 'bold' | 'berry';
+/** Chart colour palettes; the swatch shows Claude, OpenAI and the first two series colours. */
+export const PALETTES: { id: PaletteId; label: string; swatch: string[] }[] = [
+  { id: 'classic', label: 'Classic', swatch: ['#eb6834', '#1baf7a', '#2a78d6', '#e87ba4'] },
+  { id: 'ocean', label: 'Ocean', swatch: ['#2a78d6', '#1baf7a', '#eb6834', '#6250d6'] },
+  { id: 'sunset', label: 'Sunset', swatch: ['#eb6834', '#6250d6', '#1baf7a', '#eda100'] },
+  { id: 'bold', label: 'Bold', swatch: ['#e34948', '#2a78d6', '#eb6834', '#1baf7a'] },
+  { id: 'berry', label: 'Berry', swatch: ['#e87ba4', '#6250d6', '#eb6834', '#2a78d6'] },
+];
+
+export function usePalette(): [PaletteId, (p: PaletteId) => void] {
+  const [palette, setPalette] = useState<PaletteId>(() => {
+    try {
+      const p = localStorage.getItem('av.palette') as PaletteId | null;
+      return p && PALETTES.some((x) => x.id === p) ? p : 'classic';
+    } catch {
+      return 'classic';
+    }
+  });
+  const set = useCallback((p: PaletteId) => {
+    setPalette(p);
+    try {
+      if (p === 'classic') localStorage.removeItem('av.palette');
+      else localStorage.setItem('av.palette', p);
+    } catch {
+      // ignore
+    }
+    if (p === 'classic') document.documentElement.removeAttribute('data-palette');
+    else document.documentElement.setAttribute('data-palette', p);
+  }, []);
+  return [palette, set];
+}
+
 export function useTheme(): [ThemePref, (t: ThemePref) => void] {
   const [pref, setPref] = useState<ThemePref>(() => {
     try {

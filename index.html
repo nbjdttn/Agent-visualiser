@@ -27,6 +27,8 @@
       try {
         var t = localStorage.getItem('av.theme');
         if (['light', 'dark', 'midnight', 'paper'].indexOf(t) >= 0) document.documentElement.setAttribute('data-theme', t);
+        var p = localStorage.getItem('av.palette');
+        if (['ocean', 'sunset', 'bold', 'berry'].indexOf(p) >= 0) document.documentElement.setAttribute('data-palette', p);
       } catch (e) {}
     </script>
   </head>

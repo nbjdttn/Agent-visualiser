@@ -3,7 +3,7 @@ import { Activity, Cpu, Database, FolderKanban, LayoutDashboard, Palette, Rotate
 import { useId, useState, type ReactNode } from 'react';
 import { compact, usd } from '../lib/format';
 import { href, type Route } from '../lib/router';
-import { THEMES, useData, useTheme } from '../lib/store';
+import { PALETTES, THEMES, useData, usePalette, useTheme } from '../lib/store';
 import { Popover } from './Popover';
 import { ProviderDot } from './ui';
 
@@ -178,47 +178,77 @@ function TabBar({ route }: { route: Route }) {
   );
 }
 
+function PickerRow({ selected, onClick, swatch, children }: { selected: boolean; onClick: () => void; swatch: ReactNode; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      role="menuitemradio"
+      aria-checked={selected}
+      onClick={onClick}
+      className={clsx(
+        'flex min-h-[46px] w-full items-center gap-3 rounded-xl px-2.5 text-left text-[15px] text-ink hover:bg-surface-2 lg:min-h-[38px] lg:text-[14px]',
+        selected && 'bg-surface-2 font-semibold',
+      )}
+    >
+      {swatch}
+      <span className="flex-1">{children}</span>
+      {selected && (
+        <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+          <path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+/** Appearance (backgrounds) and Colours (chart palette), in one menu. */
 function ThemeToggle() {
   const [pref, setPref] = useTheme();
+  const [palette, setPalette] = usePalette();
   return (
     <Popover
       label="Appearance"
       align="right"
-      width={250}
+      width={270}
       trigger={() => (
         <span className="inline-flex h-11 w-11 items-center justify-center rounded-[13px] border border-line bg-surface text-ink-2 hover:text-ink lg:h-9 lg:w-9 lg:rounded-[10px]">
           <Palette size={21} aria-hidden />
         </span>
       )}
     >
-      {(close) => (
-        <div role="menu" aria-label="Appearance" className="flex flex-col gap-0.5">
-          <div className="px-2.5 pb-1.5 pt-1 text-[12px] font-semibold uppercase tracking-[0.06em] text-muted">Appearance</div>
+      {() => (
+        <div role="menu" aria-label="Appearance" className="scrollbar-thin flex max-h-[70vh] flex-col gap-0.5 overflow-y-auto">
+          <div className="px-2.5 pb-1 pt-1 text-[12px] font-semibold uppercase tracking-[0.06em] text-muted">Appearance</div>
           {THEMES.map((t) => (
-            <button
+            <PickerRow
               key={t.id}
-              type="button"
-              role="menuitemradio"
-              aria-checked={pref === t.id}
-              onClick={() => {
-                setPref(t.id);
-                close();
-              }}
-              className={clsx(
-                'flex min-h-[48px] w-full items-center gap-3 rounded-xl px-2.5 text-left text-[15px] text-ink hover:bg-surface-2 lg:min-h-[40px] lg:text-[14px]',
-                pref === t.id && 'bg-surface-2',
-              )}
+              selected={pref === t.id}
+              onClick={() => setPref(t.id)}
+              swatch={
+                <span aria-hidden className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full border border-line-strong" style={{ background: t.page }}>
+                  <span className="absolute bottom-1 right-1 h-2.5 w-2.5 rounded-full" style={{ background: t.accent }} />
+                </span>
+              }
             >
-              <span aria-hidden className="relative h-7 w-7 shrink-0 overflow-hidden rounded-full border border-line-strong" style={{ background: t.page }}>
-                <span className="absolute bottom-1 right-1 h-2.5 w-2.5 rounded-full" style={{ background: t.accent }} />
-              </span>
-              <span className="flex-1">{t.label}</span>
-              {pref === t.id && (
-                <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
-                  <path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              )}
-            </button>
+              {t.label}
+            </PickerRow>
+          ))}
+          <div className="mt-2 border-t border-line px-2.5 pb-1 pt-3 text-[12px] font-semibold uppercase tracking-[0.06em] text-muted">Colours</div>
+          {PALETTES.map((p) => (
+            <PickerRow
+              key={p.id}
+              selected={palette === p.id}
+              onClick={() => setPalette(p.id)}
+              swatch={
+                <span aria-hidden className="flex h-7 w-7 shrink-0 flex-wrap overflow-hidden rounded-full border border-line-strong">
+                  {p.swatch.map((c) => (
+                    <span key={c} className="h-1/2 w-1/2" style={{ background: c }} />
+                  ))}
+                </span>
+              }
+            >
+              {p.label}
+            </PickerRow>
           ))}
         </div>
       )}

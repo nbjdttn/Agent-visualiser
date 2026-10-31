@@ -33,6 +33,15 @@
   --s5: #008300;
   --s6: #e34948;
   --other: #898781;
+  /* Text on a filled mark: white, near-black on yellow in light mode. */
+  --ink-on-anthropic: #ffffff;
+  --ink-on-openai: #ffffff;
+  --ink-on-s1: #ffffff;
+  --ink-on-s2: #ffffff;
+  --ink-on-s3: #ffffff;
+  --ink-on-s4: #0b0b0b;
+  --ink-on-s5: #ffffff;
+  --ink-on-s6: #ffffff;
 
   --seq-0: #ecebe6;
   --seq-1: #cde2fb;
@@ -100,11 +109,13 @@
     --seq-ink-6: #0b0b0b;
 
     --good-text: #0ca30c;
+    --ink-on-s4: #ffffff;
   }
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
+  --ink-on-s4: #ffffff;
   --page: #0d0d0d;
   --surface: #1a1a19;
   --surface-2: #222220;
@@ -150,6 +161,7 @@
 /* Midnight: the deep violet-black of the app icon. */
 :root[data-theme='midnight'] {
   color-scheme: dark;
+  --ink-on-s4: #ffffff;
   --page: #0b0a10;
   --surface: #15131c;
   --surface-2: #1d1a26;
@@ -225,6 +237,405 @@
   --seq-ink-4: #ffffff;
   --seq-ink-5: #ffffff;
   --seq-ink-6: #ffffff;
+}
+
+/*
+ * Colour palettes (the Colours choice in Appearance). Each uses the same eight
+ * validated hues in an order that passes the colour-blindness and contrast
+ * checks in light and dark, plus a matching heatmap ramp. Classic is the
+ * default above.
+ */
+
+/* Ocean: blue and aqua. */
+
+:root[data-palette='ocean'] {
+  --anthropic: #2a78d6;
+  --openai: #1baf7a;
+  --s1: #eb6834;
+  --s2: #6250d6;
+  --s3: #eda100;
+  --s4: #e87ba4;
+  --s5: #008300;
+  --s6: #e34948;
+  --ink-on-anthropic: #ffffff;
+  --ink-on-openai: #ffffff;
+  --ink-on-s1: #ffffff;
+  --ink-on-s2: #ffffff;
+  --ink-on-s3: #0b0b0b;
+  --ink-on-s4: #ffffff;
+  --ink-on-s5: #ffffff;
+  --ink-on-s6: #ffffff;
+  --seq-1: #c9efdf;
+  --seq-2: #94dcc0;
+  --seq-3: #5ec6a0;
+  --seq-4: #1baf7a;
+  --seq-5: #128a5f;
+  --seq-6: #0b6646;
+  --seq-ink-1: #0b0b0b;
+  --seq-ink-2: #0b0b0b;
+  --seq-ink-3: #0b0b0b;
+  --seq-ink-4: #ffffff;
+  --seq-ink-5: #ffffff;
+  --seq-ink-6: #ffffff;
+}
+
+:root[data-palette='ocean'][data-theme='dark'],
+:root[data-palette='ocean'][data-theme='midnight'] {
+  --anthropic: #3987e5;
+  --openai: #199e70;
+  --s1: #d95926;
+  --s2: #9085e9;
+  --s3: #c98500;
+  --s4: #d55181;
+  --s5: #008300;
+  --s6: #e66767;
+  --ink-on-anthropic: #ffffff;
+  --ink-on-openai: #ffffff;
+  --ink-on-s1: #ffffff;
+  --ink-on-s2: #ffffff;
+  --ink-on-s3: #ffffff;
+  --ink-on-s4: #ffffff;
+  --ink-on-s5: #ffffff;
+  --ink-on-s6: #ffffff;
+  --seq-1: #0c3a2a;
+  --seq-2: #10523c;
+  --seq-3: #157053;
+  --seq-4: #199e70;
+  --seq-5: #3fc290;
+  --seq-6: #82dcb6;
+  --seq-ink-1: #f0efec;
+  --seq-ink-2: #f0efec;
+  --seq-ink-3: #f0efec;
+  --seq-ink-4: #f0efec;
+  --seq-ink-5: #0b0b0b;
+  --seq-ink-6: #0b0b0b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-palette='ocean']:not([data-theme]) {
+    --anthropic: #3987e5;
+    --openai: #199e70;
+    --s1: #d95926;
+    --s2: #9085e9;
+    --s3: #c98500;
+    --s4: #d55181;
+    --s5: #008300;
+    --s6: #e66767;
+    --ink-on-anthropic: #ffffff;
+    --ink-on-openai: #ffffff;
+    --ink-on-s1: #ffffff;
+    --ink-on-s2: #ffffff;
+    --ink-on-s3: #ffffff;
+    --ink-on-s4: #ffffff;
+    --ink-on-s5: #ffffff;
+    --ink-on-s6: #ffffff;
+    --seq-1: #0c3a2a;
+    --seq-2: #10523c;
+    --seq-3: #157053;
+    --seq-4: #199e70;
+    --seq-5: #3fc290;
+    --seq-6: #82dcb6;
+    --seq-ink-1: #f0efec;
+    --seq-ink-2: #f0efec;
+    --seq-ink-3: #f0efec;
+    --seq-ink-4: #f0efec;
+    --seq-ink-5: #0b0b0b;
+    --seq-ink-6: #0b0b0b;
+  }
+}
+
+/* Sunset: orange and violet. */
+
+:root[data-palette='sunset'] {
+  --anthropic: #eb6834;
+  --openai: #6250d6;
+  --s1: #1baf7a;
+  --s2: #eda100;
+  --s3: #e87ba4;
+  --s4: #008300;
+  --s5: #2a78d6;
+  --s6: #e34948;
+  --ink-on-anthropic: #ffffff;
+  --ink-on-openai: #ffffff;
+  --ink-on-s1: #ffffff;
+  --ink-on-s2: #0b0b0b;
+  --ink-on-s3: #ffffff;
+  --ink-on-s4: #ffffff;
+  --ink-on-s5: #ffffff;
+  --ink-on-s6: #ffffff;
+  --seq-1: #f8d9c6;
+  --seq-2: #f2b48f;
+  --seq-3: #ea8f5f;
+  --seq-4: #d96b38;
+  --seq-5: #b8542a;
+  --seq-6: #8f4020;
+  --seq-ink-1: #0b0b0b;
+  --seq-ink-2: #0b0b0b;
+  --seq-ink-3: #0b0b0b;
+  --seq-ink-4: #ffffff;
+  --seq-ink-5: #ffffff;
+  --seq-ink-6: #ffffff;
+}
+
+:root[data-palette='sunset'][data-theme='dark'],
+:root[data-palette='sunset'][data-theme='midnight'] {
+  --anthropic: #d95926;
+  --openai: #9085e9;
+  --s1: #199e70;
+  --s2: #c98500;
+  --s3: #d55181;
+  --s4: #008300;
+  --s5: #3987e5;
+  --s6: #e66767;
+  --ink-on-anthropic: #ffffff;
+  --ink-on-openai: #ffffff;
+  --ink-on-s1: #ffffff;
+  --ink-on-s2: #ffffff;
+  --ink-on-s3: #ffffff;
+  --ink-on-s4: #ffffff;
+  --ink-on-s5: #ffffff;
+  --ink-on-s6: #ffffff;
+  --seq-1: #4a2414;
+  --seq-2: #6b311a;
+  --seq-3: #93421f;
+  --seq-4: #c4561f;
+  --seq-5: #ef8a5c;
+  --seq-6: #f6b392;
+  --seq-ink-1: #f0efec;
+  --seq-ink-2: #f0efec;
+  --seq-ink-3: #f0efec;
+  --seq-ink-4: #f0efec;
+  --seq-ink-5: #0b0b0b;
+  --seq-ink-6: #0b0b0b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-palette='sunset']:not([data-theme]) {
+    --anthropic: #d95926;
+    --openai: #9085e9;
+    --s1: #199e70;
+    --s2: #c98500;
+    --s3: #d55181;
+    --s4: #008300;
+    --s5: #3987e5;
+    --s6: #e66767;
+    --ink-on-anthropic: #ffffff;
+    --ink-on-openai: #ffffff;
+    --ink-on-s1: #ffffff;
+    --ink-on-s2: #ffffff;
+    --ink-on-s3: #ffffff;
+    --ink-on-s4: #ffffff;
+    --ink-on-s5: #ffffff;
+    --ink-on-s6: #ffffff;
+    --seq-1: #4a2414;
+    --seq-2: #6b311a;
+    --seq-3: #93421f;
+    --seq-4: #c4561f;
+    --seq-5: #ef8a5c;
+    --seq-6: #f6b392;
+    --seq-ink-1: #f0efec;
+    --seq-ink-2: #f0efec;
+    --seq-ink-3: #f0efec;
+    --seq-ink-4: #f0efec;
+    --seq-ink-5: #0b0b0b;
+    --seq-ink-6: #0b0b0b;
+  }
+}
+
+/* Bold: red and blue. */
+
+:root[data-palette='bold'] {
+  --anthropic: #e34948;
+  --openai: #2a78d6;
+  --s1: #eb6834;
+  --s2: #1baf7a;
+  --s3: #eda100;
+  --s4: #e87ba4;
+  --s5: #008300;
+  --s6: #6250d6;
+  --ink-on-anthropic: #ffffff;
+  --ink-on-openai: #ffffff;
+  --ink-on-s1: #ffffff;
+  --ink-on-s2: #ffffff;
+  --ink-on-s3: #0b0b0b;
+  --ink-on-s4: #ffffff;
+  --ink-on-s5: #ffffff;
+  --ink-on-s6: #ffffff;
+  --seq-1: #e4defb;
+  --seq-2: #c7bbf6;
+  --seq-3: #a594ef;
+  --seq-4: #8471e6;
+  --seq-5: #6250d6;
+  --seq-6: #4a3aa7;
+  --seq-ink-1: #0b0b0b;
+  --seq-ink-2: #0b0b0b;
+  --seq-ink-3: #0b0b0b;
+  --seq-ink-4: #ffffff;
+  --seq-ink-5: #ffffff;
+  --seq-ink-6: #ffffff;
+}
+
+:root[data-palette='bold'][data-theme='dark'],
+:root[data-palette='bold'][data-theme='midnight'] {
+  --anthropic: #e66767;
+  --openai: #3987e5;
+  --s1: #d95926;
+  --s2: #199e70;
+  --s3: #c98500;
+  --s4: #d55181;
+  --s5: #008300;
+  --s6: #9085e9;
+  --ink-on-anthropic: #ffffff;
+  --ink-on-openai: #ffffff;
+  --ink-on-s1: #ffffff;
+  --ink-on-s2: #ffffff;
+  --ink-on-s3: #ffffff;
+  --ink-on-s4: #ffffff;
+  --ink-on-s5: #ffffff;
+  --ink-on-s6: #ffffff;
+  --seq-1: #2b2459;
+  --seq-2: #3a2f7e;
+  --seq-3: #5140b0;
+  --seq-4: #6d5ad6;
+  --seq-5: #8f7bff;
+  --seq-6: #b7a9ff;
+  --seq-ink-1: #f0efec;
+  --seq-ink-2: #f0efec;
+  --seq-ink-3: #f0efec;
+  --seq-ink-4: #f0efec;
+  --seq-ink-5: #0b0b0b;
+  --seq-ink-6: #0b0b0b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-palette='bold']:not([data-theme]) {
+    --anthropic: #e66767;
+    --openai: #3987e5;
+    --s1: #d95926;
+    --s2: #199e70;
+    --s3: #c98500;
+    --s4: #d55181;
+    --s5: #008300;
+    --s6: #9085e9;
+    --ink-on-anthropic: #ffffff;
+    --ink-on-openai: #ffffff;
+    --ink-on-s1: #ffffff;
+    --ink-on-s2: #ffffff;
+    --ink-on-s3: #ffffff;
+    --ink-on-s4: #ffffff;
+    --ink-on-s5: #ffffff;
+    --ink-on-s6: #ffffff;
+    --seq-1: #2b2459;
+    --seq-2: #3a2f7e;
+    --seq-3: #5140b0;
+    --seq-4: #6d5ad6;
+    --seq-5: #8f7bff;
+    --seq-6: #b7a9ff;
+    --seq-ink-1: #f0efec;
+    --seq-ink-2: #f0efec;
+    --seq-ink-3: #f0efec;
+    --seq-ink-4: #f0efec;
+    --seq-ink-5: #0b0b0b;
+    --seq-ink-6: #0b0b0b;
+  }
+}
+
+/* Berry: magenta and violet. */
+
+:root[data-palette='berry'] {
+  --anthropic: #e87ba4;
+  --openai: #6250d6;
+  --s1: #eb6834;
+  --s2: #2a78d6;
+  --s3: #1baf7a;
+  --s4: #eda100;
+  --s5: #008300;
+  --s6: #e34948;
+  --ink-on-anthropic: #ffffff;
+  --ink-on-openai: #ffffff;
+  --ink-on-s1: #ffffff;
+  --ink-on-s2: #ffffff;
+  --ink-on-s3: #ffffff;
+  --ink-on-s4: #0b0b0b;
+  --ink-on-s5: #ffffff;
+  --ink-on-s6: #ffffff;
+  --seq-1: #f8dbe7;
+  --seq-2: #f2b6cd;
+  --seq-3: #e88db0;
+  --seq-4: #d8638f;
+  --seq-5: #b8466f;
+  --seq-6: #8a2f51;
+  --seq-ink-1: #0b0b0b;
+  --seq-ink-2: #0b0b0b;
+  --seq-ink-3: #0b0b0b;
+  --seq-ink-4: #ffffff;
+  --seq-ink-5: #ffffff;
+  --seq-ink-6: #ffffff;
+}
+
+:root[data-palette='berry'][data-theme='dark'],
+:root[data-palette='berry'][data-theme='midnight'] {
+  --anthropic: #d55181;
+  --openai: #9085e9;
+  --s1: #d95926;
+  --s2: #3987e5;
+  --s3: #199e70;
+  --s4: #c98500;
+  --s5: #008300;
+  --s6: #e66767;
+  --ink-on-anthropic: #ffffff;
+  --ink-on-openai: #ffffff;
+  --ink-on-s1: #ffffff;
+  --ink-on-s2: #ffffff;
+  --ink-on-s3: #ffffff;
+  --ink-on-s4: #ffffff;
+  --ink-on-s5: #ffffff;
+  --ink-on-s6: #ffffff;
+  --seq-1: #4a1a2c;
+  --seq-2: #6e2541;
+  --seq-3: #993259;
+  --seq-4: #c94675;
+  --seq-5: #e687ab;
+  --seq-6: #f2b8cf;
+  --seq-ink-1: #f0efec;
+  --seq-ink-2: #f0efec;
+  --seq-ink-3: #f0efec;
+  --seq-ink-4: #f0efec;
+  --seq-ink-5: #0b0b0b;
+  --seq-ink-6: #0b0b0b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-palette='berry']:not([data-theme]) {
+    --anthropic: #d55181;
+    --openai: #9085e9;
+    --s1: #d95926;
+    --s2: #3987e5;
+    --s3: #199e70;
+    --s4: #c98500;
+    --s5: #008300;
+    --s6: #e66767;
+    --ink-on-anthropic: #ffffff;
+    --ink-on-openai: #ffffff;
+    --ink-on-s1: #ffffff;
+    --ink-on-s2: #ffffff;
+    --ink-on-s3: #ffffff;
+    --ink-on-s4: #ffffff;
+    --ink-on-s5: #ffffff;
+    --ink-on-s6: #ffffff;
+    --seq-1: #4a1a2c;
+    --seq-2: #6e2541;
+    --seq-3: #993259;
+    --seq-4: #c94675;
+    --seq-5: #e687ab;
+    --seq-6: #f2b8cf;
+    --seq-ink-1: #f0efec;
+    --seq-ink-2: #f0efec;
+    --seq-ink-3: #f0efec;
+    --seq-ink-4: #f0efec;
+    --seq-ink-5: #0b0b0b;
+    --seq-ink-6: #0b0b0b;
+  }
 }
 
 @theme {
