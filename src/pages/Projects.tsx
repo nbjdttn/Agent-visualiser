@@ -13,7 +13,7 @@ import { SegmentedBar } from '../components/charts/SegmentedBar';
 import { Sparkline } from '../components/charts/Sparkline';
 import { Treemap, type TreemapProject } from '../components/charts/Treemap';
 import { DataTable, type Column } from '../components/DataTable';
-import { AllSessionsCard, SessionCharts } from '../components/SessionCards';
+import { AllSessionsCard } from '../components/SessionCards';
 import { UsageOverTime } from '../components/UsageOverTime';
 import { Card, CardHeader, SourceBadge } from '../components/ui';
 
@@ -42,7 +42,7 @@ export function ProjectsPage({ data }: { data: Data }) {
   const [showAll, setShowAll] = useState(false);
   const facts = useMemo(() => applyFilters(data, filters, range, { project: false }), [data, filters, range]);
   const sessions = useMemo(() => filterSessions(data, { ...filters, project: null }, range), [data, filters, range]);
-  // The session charts follow every filter, the project one included.
+  // The session list follows every filter, the project one included.
   const sessionsInView = useMemo(() => filterSessions(data, filters, range), [data, filters, range]);
 
   const rows: Row[] = useMemo(() => {
@@ -229,8 +229,6 @@ export function ProjectsPage({ data }: { data: Data }) {
         height={220}
         simple
       />
-
-      <SessionCharts data={data} sessions={sessionsInView} />
 
       <Card ref={allRef} className={`scroll-mt-4 p-4 sm:p-5 ${refetching ? 'refetching' : ''}`}>
         <button type="button" onClick={() => setShowAll((v) => !v)} className="flex w-full items-center justify-between gap-3 text-left" aria-expanded={showAll}>

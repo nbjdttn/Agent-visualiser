@@ -76,8 +76,8 @@ numbers are, encrypted.
   the week you use AI, recent chats, tools used (web search, code, images) and monthly totals.
 - **Projects:** a map of where your tokens go: ChatGPT projects, custom GPTs, Claude projects and everything else. Tap
   one for its own timeline, models and conversations. ChatGPT exports don't include project names, so you can rename
-  them (the name is only stored on your phone). Below the map: sessions per day, session sizes, and every
-  conversation with its model, length, tokens and cost; tap one to see how each reply re-read a growing conversation.
+  them (the name is only stored on your phone). At the bottom: every conversation with its model, length,
+  tokens and cost; tap one to see how each reply re-read a growing conversation.
 - **Live:** your Mac's agents right now, and its gentle-mode switch (see [Gentle mode](#gentle-mode-agents-leave-you-room-while-you-use-the-mac)).
 - **Models:** which models you used, how much, and what they would cost on the API.
 
