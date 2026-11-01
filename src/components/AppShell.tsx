@@ -289,9 +289,9 @@ export function AppShell({
       </aside>
 
       <div className="lg:pl-[244px]">
+        {/* On the phone, a little more room below the status bar, clear of iOS's blurred edge. */}
         <header
-          className="relative z-20 border-b border-line bg-[color-mix(in_srgb,var(--page)_82%,transparent)] backdrop-blur-xl lg:sticky lg:top-0"
-          style={{ paddingTop: 'env(safe-area-inset-top)' }}
+          className="relative z-20 border-b border-line bg-[color-mix(in_srgb,var(--page)_82%,transparent)] pt-[calc(env(safe-area-inset-top)_+_14px)] backdrop-blur-xl lg:sticky lg:top-0 lg:pt-0"
         >
           <div className="mx-auto flex max-w-[1480px] flex-col gap-3 px-4 py-3 sm:px-6 lg:px-8">
             <div className="flex items-center gap-3">
