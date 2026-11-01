@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { latestState, newControlInfo, nonce, openControl, parseRelayLines, sealControl, type StateMessage } from '../core/sync/control';
+import { fitAgents, latestState, newControlInfo, nonce, openControl, parseRelayLines, sealControl, type LiveAgent, type StateMessage } from '../core/sync/control';
 import {
   AGENT_ENV,
   OPT_OUT_ENV,
@@ -365,5 +365,37 @@ describe('the phone link', () => {
     const events = parseRelayLines(lines);
     expect(events.map((e) => e.id)).toEqual(['a', 'b', 'c', 'd', 'e']);
     expect((await latestState(info, events))?.held).toBe(2);
+  });
+
+  it('says which agent is on which project, within one relay message', async () => {
+    const info = newControlInfo();
+    const agent = (i: number): LiveAgent => ({
+      src: i % 2 ? 'codex' : 'claude-code',
+      project: `Project ${i} with a rather long folder name for a phone screen`,
+      title: `Session ${i}: `.padEnd(200, 'é'),
+      model: 'Opus 4.5',
+      last: 1_700_000_000_000 - i * 60_000,
+    });
+    const few = fitAgents([agent(0), agent(1)]);
+    expect(few.moreAgents).toBeUndefined();
+    expect(few.agents?.map((a) => a.src)).toEqual(['claude-code', 'codex']);
+    expect(few.agents?.[0].title.length).toBe(60);
+    expect(few.agents?.[0].title.endsWith('…')).toBe(true);
+
+    const many = fitAgents(Array.from({ length: 40 }, (_, i) => agent(i)));
+    expect(many.agents!.length).toBeGreaterThan(5);
+    expect(many.agents!.length + many.moreAgents!).toBe(40);
+    const msg: StateMessage = {
+      t: 'state', mode: 'auto', here: true, reason: 'input', held: 0, how: 'slow', live: 'gentle',
+      cpu: { cores: 16, agents: 1.9, free: 0, busy: 3.4 }, gpu: 12, mem: { used: 4e10, total: 6.8e10, pressure: 'normal', swap: 1e9 },
+      ...many, at: 1_700_000_000_000, n: nonce(),
+    };
+    const sealed = await sealControl(info, msg);
+    expect(sealed.length).toBeLessThan(4096);
+    expect(await openControl(info, sealed)).toEqual(msg);
+
+    // A malformed entry is dropped rather than breaking the card.
+    const odd = { ...msg, agents: [...few.agents!, { src: 'codex', project: 7 } as unknown as LiveAgent] };
+    expect(((await openControl(info, await sealControl(info, odd))) as StateMessage | null)?.agents).toEqual(few.agents);
   });
 });

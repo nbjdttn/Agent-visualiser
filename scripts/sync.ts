@@ -5,6 +5,8 @@
  * desktop server does), sums them per hour, encrypts the result for the
  * registered phones and publishes it to the `usage-data` branch of this
  * repository. The phone downloads and decrypts it; nobody else can read it.
+ * While gentle mode's phone link is on, it also lists the active sessions every
+ * 30 seconds, and gentle mode sends that list to the phone's Mac card.
  *
  *   npm run sync -- install              keep this computer's usage flowing to your phone (macOS background job)
  *   npm run sync -- once                 scan and publish once
@@ -29,10 +31,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { tokensOf } from '../core/aggregate.js';
+import { buildDataset, tokensOf } from '../core/aggregate.js';
+import { computeLive } from '../core/live.js';
 import { Pricing } from '../core/pricing.js';
 import { kidOf, parseDeviceCode, publicKeyBytes, sealJson, type DevicePublic } from '../core/sync/envelope.js';
-import { isControlInfo, type ControlInfo } from '../core/sync/control.js';
+import { LIVE_AGENTS_FILE, isControlInfo, type ControlInfo, type LiveAgentsFile } from '../core/sync/control.js';
 import {
   ARCHIVE_VERSION,
   CLOUD_FILE,
@@ -65,10 +68,12 @@ const REMOTE = process.env.SYNC_REMOTE || 'origin';
 const BRANCH = process.env.SYNC_BRANCH || SYNC_BRANCH;
 const LOCAL_REF = `refs/agent-visualiser/${BRANCH}`;
 const INTERVAL_MS = Math.max(2, Number(process.env.SYNC_INTERVAL_MINUTES) || 10) * 60_000;
-const SCAN_MS = 2 * 60_000;
+/** How often the list of active sessions for the phone is refreshed (and publishing is checked). */
+const LIVE_MS = 30_000;
 const DEVICE_CHECK_MS = 15 * 60_000;
 const CONFIG_DIR = path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), 'agent-visualiser');
 const STATE_FILE = path.join(CONFIG_DIR, 'sync.json');
+const LIVE_FILE = path.join(CONFIG_DIR, LIVE_AGENTS_FILE);
 /** Everything this computer has sent, kept after Claude Code or Codex delete their old logs. */
 const ARCHIVE_FILE = path.join(CONFIG_DIR, 'archive.json');
 const CACHE_DIR = process.env.AGENT_VISUALISER_CACHE || path.join(process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache'), 'agent-visualiser');
@@ -314,6 +319,22 @@ class ComputerScanner {
       .digest('hex');
     return { payload: { v: 1, kind: 'computer', name: await computerName(), generatedAt: Date.now(), rollup, statuses, ...(control ? { control } : {}) }, hash };
   }
+
+  /** Which agent is working on which project now, for gentle mode to pass on to the phone. */
+  async writeLive() {
+    await Promise.all([this.claude.scan(), this.codex.scan()]);
+    const now = Date.now();
+    const built = buildDataset({ snapshots: [this.claude.snapshot(), this.codex.snapshot()], pricing: this.pricing, statuses: [], demo: false, version: 0 });
+    const { active } = computeLive({ built, now, version: 0, demo: false, scanning: false });
+    const file: LiveAgentsFile = {
+      at: now,
+      agents: active.map((s) => ({ src: s.source, project: s.project, title: s.title, model: s.modelLabel, last: s.lastActivity })),
+    };
+    fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    const tmp = `${LIVE_FILE}.${process.pid}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(file) + '\n');
+    fs.renameSync(tmp, LIVE_FILE); // gentle mode never reads half a file
+  }
 }
 
 /** Gentle mode's phone link, sent along so the phone can show the Work mode switch. */
@@ -367,6 +388,14 @@ async function watch() {
   for (;;) {
     try {
       const now = Date.now();
+      // Only while the phone can see it: gentle mode's phone link is on.
+      if (gentleControl()) {
+        try {
+          await scanner.writeLive();
+        } catch (err) {
+          log(`Couldn't list the active sessions: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
       const due = now - (state.lastPublishAt ?? 0) >= INTERVAL_MS;
       if (due) await publishComputer(scanner, state);
       if (now - lastDeviceCheck >= DEVICE_CHECK_MS) {
@@ -380,7 +409,7 @@ async function watch() {
     } catch (err) {
       log(`Error: ${err instanceof Error ? err.message : String(err)}`);
     }
-    await sleep(SCAN_MS);
+    await sleep(LIVE_MS);
   }
 }
 

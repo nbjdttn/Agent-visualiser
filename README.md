@@ -117,7 +117,10 @@ mode is a small background helper that watches for you:
 - **From the phone**: the Overview tab gets a card for your Mac with a short system panel (one block per CPU core, blue
   for the agents, glowing green for the cores kept free for you; then GPU and memory) and a switch where the mode you're
   in glows: **Work** keeps the cores free even when you're not touching the Mac, **Full speed** never holds the agents
-  back, **Auto** follows you.
+  back, **Auto** follows you. Under the switch, the card lists which agent is working on which project: each Claude
+  Code or Codex session active in the last 20 minutes, with its project, title and model (working ones first; idle
+  ones greyed). Automatic updates refresh that list every 30 seconds while the phone link is on, and the card
+  fetches it about once a minute while it's on screen.
 
 Install it on the Mac, in the same folder as automatic updates (running it again updates it):
 

@@ -27,6 +27,8 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import {
   DEFAULT_RELAY,
+  LIVE_AGENTS_FILE,
+  fitAgents,
   isControlInfo,
   newControlInfo,
   nonce,
@@ -37,6 +39,7 @@ import {
   type CpuInfo,
   type GentleHow,
   type GentleMode,
+  type LiveAgentsFile,
   type MemInfo,
   type StateMessage,
 } from '../core/sync/control.js';
@@ -75,6 +78,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CONFIG_DIR = path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), 'agent-visualiser');
 export const GENTLE_CONFIG = path.join(CONFIG_DIR, 'gentle.json');
 const STATE_FILE = path.join(CONFIG_DIR, 'gentle-state.json');
+const LIVE_FILE = path.join(CONFIG_DIR, LIVE_AGENTS_FILE);
 const LABEL = 'io.github.agent-visualiser.gentle';
 const PLIST = path.join(os.homedir(), 'Library', 'LaunchAgents', `${LABEL}.plist`);
 const LOG = path.join(os.homedir(), 'Library', 'Logs', 'agent-visualiser-gentle.log');
@@ -87,6 +91,9 @@ const SYSTEM_MS = 10_000;
 /** ntfy.sh allows a few hundred messages a day: a status at most every 15 s, a heartbeat hourly. */
 const PUBLISH_GAP_MS = 15_000;
 const HEARTBEAT_MS = 60 * 60_000;
+/** The sync job refreshes its list of active sessions every 30 s; older than this, it has stopped. */
+const LIVE_STALE_MS = 3 * 60_000;
+const LIVE_IDLE_MS = 20 * 60_000;
 const MIN_CPU = 25;
 const CORES = Math.max(1, os.cpus().length);
 
@@ -351,6 +358,17 @@ async function scan(): Promise<{ procs: Proc[]; names: Map<number, string>; jobs
   return { procs, names, jobs, work };
 }
 
+/** Which agent is working on which project, from the sync job's list; nothing if it isn't running. */
+function liveAgents(now: number): Pick<StateMessage, 'agents' | 'moreAgents'> {
+  try {
+    const f = JSON.parse(fs.readFileSync(LIVE_FILE, 'utf8')) as LiveAgentsFile;
+    if (!Number.isFinite(f.at) || now - f.at > LIVE_STALE_MS || !Array.isArray(f.agents)) return {};
+    return fitAgents(f.agents.filter((a) => now - a.last <= LIVE_IDLE_MS));
+  } catch {
+    return {};
+  }
+}
+
 // ---------------------------------------------------------------------------
 // The phone link (an encrypted ntfy topic)
 // ---------------------------------------------------------------------------
@@ -600,6 +618,7 @@ async function run() {
       cpu: cpu(),
       ...(gpu !== undefined ? { gpu } : {}),
       ...(mem ? { mem } : {}),
+      ...liveAgents(Date.now()),
     }),
   );
   if (cfg.control) void relay.listen();

@@ -10,12 +10,14 @@ import {
   type ControlInfo,
   type CpuInfo,
   type GentleMode,
+  type LiveAgent,
   type MemInfo,
   type StateMessage,
 } from '../../core/sync/control';
+import { SOURCE_META, type SourceId } from '../../shared/types';
 import { relative } from '../lib/format';
 import { useData } from '../lib/store';
-import { Card } from './ui';
+import { Card, SourceBadge } from './ui';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 let lastPing = 0;
@@ -42,7 +44,7 @@ const MODES: { value: GentleMode; label: string; title: string }[] = [
  * and what the Mac is doing right now (glowing green: Work or Full speed); below the
  * name is a short system panel: one block per CPU core (blue for the agents,
  * grey for everything else, glowing green for the ones kept free for you),
- * then GPU and memory.
+ * then GPU and memory. Under the switch: which agent is working on which project.
  */
 export function MacCard() {
   const { sync } = useData();
@@ -181,7 +183,52 @@ export function MacCard() {
           );
         })}
       </div>
+
+      {state && !stale && state.agents ? <AgentList agents={state.agents} more={state.moreAgents ?? 0} at={state.at} /> : null}
     </Card>
+  );
+}
+
+/** Written to in the last 3 minutes: working (as on the computer's Live page). */
+const WORKING_MS = 3 * 60_000;
+
+/** Which agent is working on which project, from the Mac's live list. */
+function AgentList({ agents, more, at }: { agents: LiveAgent[]; more: number; at: number }) {
+  const working = agents.filter((a) => at - a.last <= WORKING_MS).length;
+  return (
+    <div className="mt-3.5 border-t border-line pt-3">
+      <div className="text-[13px] font-semibold text-ink-2">
+        {working ? `${working} agent${working > 1 ? 's' : ''} working` : 'No agents working'}
+      </div>
+      {agents.length ? (
+        <ul className="mt-1">
+          {agents.map((a, i) => {
+            const on = at - a.last <= WORKING_MS;
+            return (
+              <li key={i} className={clsx('flex items-center gap-2.5 py-1.5', !on && 'opacity-60')}>
+                {on ? (
+                  <span className="live-dot shrink-0" aria-label="Working" />
+                ) : (
+                  <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-[var(--muted)]" aria-label="Idle" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[15px] font-semibold text-ink lg:text-[13.5px]">{a.project}</div>
+                  <div className="truncate text-[12.5px] text-muted">
+                    {on ? '' : `${relative(a.last, at)} · `}
+                    {a.title}
+                  </div>
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  {a.src in SOURCE_META ? <SourceBadge source={a.src as SourceId} /> : null}
+                  <span className="text-[12px] text-muted">{a.model}</span>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+      {more ? <div className="pt-1 text-[12px] text-muted">and {more} more</div> : null}
+    </div>
   );
 }
 

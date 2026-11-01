@@ -67,6 +67,26 @@ export interface MemInfo {
   swap?: number;
 }
 
+/** An agent session on the Mac: which agent is working on which project. */
+export interface LiveAgent {
+  /** Source id: claude-code or codex. */
+  src: string;
+  project: string;
+  title: string;
+  /** Model label, e.g. "Opus 4.5". */
+  model: string;
+  /** Last time the session wrote to its log. */
+  last: number;
+}
+
+/** The sync job's list of active sessions, which gentle mode passes on to the phone. */
+export const LIVE_AGENTS_FILE = 'live-agents.json';
+
+export interface LiveAgentsFile {
+  at: number;
+  agents: LiveAgent[];
+}
+
 /** Mac → phone: what the Mac is doing now. */
 export interface StateMessage {
   t: 'state';
@@ -84,9 +104,36 @@ export interface StateMessage {
   /** GPU utilisation, percent. */
   gpu?: number;
   mem?: MemInfo;
+  /** Agent sessions active in the last 20 minutes, working ones first; absent when the sync job isn't running. */
+  agents?: LiveAgent[];
+  /** How many more sessions there were than fit in one message. */
+  moreAgents?: number;
   at: number;
   n: string;
 }
+
+/** ntfy turns messages over 4,096 bytes into attachments: the agents get this much of a status. */
+export const AGENTS_BUDGET = 1800;
+
+const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+
+/** As many agents as fit in a status message, with long names shortened. */
+export function fitAgents(agents: LiveAgent[], budget = AGENTS_BUDGET): Pick<StateMessage, 'agents' | 'moreAgents'> {
+  const out: LiveAgent[] = [];
+  let bytes = 2;
+  for (const a of agents) {
+    const c: LiveAgent = { src: a.src, project: clip(a.project, 40), title: clip(a.title, 60), model: clip(a.model, 24), last: a.last };
+    const n = utf8(JSON.stringify(c)).length + 1;
+    if (bytes + n > budget) break;
+    out.push(c);
+    bytes += n;
+  }
+  const more = agents.length - out.length;
+  return more ? { agents: out, moreAgents: more } : { agents: out };
+}
+
+const isAgent = (a: LiveAgent) =>
+  !!a && typeof a.src === 'string' && typeof a.project === 'string' && typeof a.title === 'string' && typeof a.model === 'string' && Number.isFinite(a.last);
 
 export type ControlMessage = SetMessage | PingMessage | StateMessage;
 
@@ -148,7 +195,10 @@ export async function openControl(info: ControlInfo, text: string): Promise<Cont
     );
     const msg = JSON.parse(new TextDecoder().decode(plain)) as ControlMessage;
     if (msg?.t === 'set' && GENTLE_MODES.includes(msg.mode) && Number.isFinite(msg.at)) return msg;
-    if (msg?.t === 'state' && GENTLE_MODES.includes(msg.mode) && Number.isFinite(msg.at)) return msg;
+    if (msg?.t === 'state' && GENTLE_MODES.includes(msg.mode) && Number.isFinite(msg.at)) {
+      if (msg.agents !== undefined) msg.agents = Array.isArray(msg.agents) ? msg.agents.filter(isAgent) : undefined;
+      return msg;
+    }
     if (msg?.t === 'ping' && Number.isFinite(msg.at)) return msg;
     return null;
   } catch {
