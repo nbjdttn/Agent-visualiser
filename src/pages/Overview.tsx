@@ -17,7 +17,6 @@ import { useData, useFilters } from '../lib/store';
 import { HeroCard } from '../components/Hero';
 import { CalendarCard, HourCard, ModelsCard, ProjectsCard } from '../components/cards';
 import { LiveStrip } from '../components/Live';
-import { MacCard } from '../components/MacCard';
 import { BiggestSessionsCard, CostCard, MonthsCard } from '../components/overviewCards';
 import { StatTile } from '../components/StatTile';
 import { UsageOverTime } from '../components/UsageOverTime';
@@ -55,7 +54,6 @@ export function OverviewPage({ data }: { data: Data }) {
   return (
     <div className="flex flex-col gap-4 lg:gap-5">
       {live && <LiveStrip live={live} />}
-      <MacCard />
 
       <div className="grid gap-4 lg:grid-cols-12 lg:gap-5">
         <div className={`lg:col-span-7 ${refetching ? 'refetching' : ''}`}>

@@ -56,7 +56,7 @@ function CodeBox({ view }: { view: SyncView }) {
   );
 }
 
-/** Data tab: turn automatic updates on, register this phone, and see what has arrived. */
+/** Your data page: turn automatic updates on, register this phone, and see what has arrived. */
 export function AutoUpdatesCard() {
   const { sync, syncing, enableSync, disableSync, checkSync } = useData();
   const [busy, setBusy] = useState(false);

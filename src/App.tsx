@@ -7,7 +7,7 @@ import { AppShell } from './components/AppShell';
 import { FilterBar } from './components/FilterBar';
 import { SessionDrawer } from './components/SessionDrawer';
 import { Card, EmptyState } from './components/ui';
-import { LivePage } from './pages/Live';
+import { LivePage, PhoneLivePage } from './pages/Live';
 import { ModelsPage } from './pages/Models';
 import { OverviewPage } from './pages/Overview';
 import { ProjectDetailPage } from './pages/ProjectDetail';
@@ -49,7 +49,9 @@ function Pages() {
   const withFilters = route.page !== 'live' && route.page !== 'sources';
   const subtitle =
     route.page === 'live'
-      ? 'Agents working right now, plan windows and limits'
+      ? mode === 'device'
+        ? 'Which agent is working on which project'
+        : 'Agents working right now, plan windows and limits'
       : route.page === 'sources'
         ? 'Import your history'
         : rangeLabel(range.from, range.to);
@@ -72,14 +74,7 @@ function Pages() {
       </Card>
     );
   } else if (route.page === 'live' && mode === 'device') {
-    body = (
-      <Card>
-        <EmptyState title="Live view needs a computer" icon={<AlertTriangle size={22} />}>
-          Live agent activity comes from Claude Code and Codex running on a computer with the desktop version of this app. On
-          your phone, import your history from the Data tab instead.
-        </EmptyState>
-      </Card>
-    );
+    body = <PhoneLivePage />;
   } else if (!data) {
     body = <Loading />;
   } else {

@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { Laptop } from 'lucide-react';
+import { Laptop, Radio } from 'lucide-react';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import {
   latestState,
@@ -17,7 +17,7 @@ import {
 import { SOURCE_META, type SourceId } from '../../shared/types';
 import { relative } from '../lib/format';
 import { useData } from '../lib/store';
-import { Card, SourceBadge } from './ui';
+import { Card, EmptyState, SourceBadge } from './ui';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 let lastPing = 0;
@@ -40,13 +40,13 @@ const MODES: { value: GentleMode; label: string; title: string }[] = [
 ];
 
 /**
- * Your Mac's gentle mode, from the phone. The switch shows your choice (white)
- * and what the Mac is doing right now (glowing green: Work or Full speed); below the
- * name is a short system panel: one block per CPU core (blue for the agents,
- * grey for everything else, glowing green for the ones kept free for you),
- * then GPU and memory. Under the switch: which agent is working on which project.
+ * The phone's Live tab: your Mac's gentle mode, then which agent is working on
+ * which project. The switch shows your choice (white) and what the Mac is doing
+ * right now (glowing green: Work or Full speed); below the name is a short system
+ * panel: one block per CPU core (blue for the agents, grey for everything else,
+ * glowing green for the ones kept free for you), then GPU and memory.
  */
-export function MacCard() {
+export function MacLive() {
   const { sync } = useData();
   const mac = sync?.computers?.find((c) => c.control);
   const info = mac?.control;
@@ -128,64 +128,66 @@ export function MacCard() {
   const note = offline ? 'Offline' : !loaded ? '' : !state ? 'Not connected' : stale ? relative(state.at) : '';
 
   return (
-    <Card className="p-4 sm:p-5">
-      <div className="flex items-center gap-3">
-        <span
-          className={clsx(
-            'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] transition-colors',
-            live === 'gentle' ? 'bg-[color-mix(in_srgb,var(--good)_18%,transparent)] text-[var(--good-text)]' : 'bg-surface-2 text-ink-2',
-          )}
-          aria-hidden
-        >
-          <Laptop size={22} />
-        </span>
-        <h2 className="min-w-0 flex-1 truncate text-[17px] font-semibold text-ink lg:text-[15px]">{mac.name}</h2>
-        {note ? <span className="shrink-0 rounded-full bg-surface-2 px-2.5 py-1 text-[12.5px] font-medium text-muted">{note}</span> : null}
-      </div>
-
-      {state && !stale && (state.cpu || state.gpu !== undefined || state.mem) ? (
-        <div className="mt-3 grid grid-cols-3 items-start gap-1">
-          {state.cpu ? <CpuGauge cpu={state.cpu} gentle={live === 'gentle'} /> : <span />}
-          {state.gpu !== undefined ? (
-            <Ring label="GPU" value={`${Math.round(state.gpu)}`} unit="%" parts={[{ to: state.gpu / 100, colors: RING.gpu }]} title={`GPU ${Math.round(state.gpu)}% busy`} />
-          ) : (
-            <span />
-          )}
-          {state.mem ? <MemGauge mem={state.mem} /> : <span />}
+    <div className="flex flex-col gap-5">
+      <Card className="p-4 sm:p-5">
+        <div className="flex items-center gap-3">
+          <span
+            className={clsx(
+              'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] transition-colors',
+              live === 'gentle' ? 'bg-[color-mix(in_srgb,var(--good)_18%,transparent)] text-[var(--good-text)]' : 'bg-surface-2 text-ink-2',
+            )}
+            aria-hidden
+          >
+            <Laptop size={22} />
+          </span>
+          <h2 className="min-w-0 flex-1 truncate text-[17px] font-semibold text-ink lg:text-[15px]">{mac.name}</h2>
+          {note ? <span className="shrink-0 rounded-full bg-surface-2 px-2.5 py-1 text-[12.5px] font-medium text-muted">{note}</span> : null}
         </div>
-      ) : null}
 
-      {/* The white button is your choice; the green glow is what the Mac is doing right now
-          (Work while it keeps cores free for you, Full speed while the agents have it all). */}
-      <div role="radiogroup" aria-label="Agents on your Mac" className="mt-3.5 flex h-12 w-full items-center gap-1 rounded-[15px] border border-line bg-surface-2 p-1 lg:h-11">
-        {MODES.map((m) => {
-          const chosen = (pending ?? current) === m.value;
-          const glowing = !pending && nowOption === m.value;
-          return (
-            <button
-              key={m.value}
-              type="button"
-              role="radio"
-              aria-checked={chosen}
-              title={glowing ? `${m.title} (what your Mac is doing now)` : m.title}
-              onClick={() => void choose(m.value)}
-              className={clsx(
-                'flex h-full flex-1 items-center justify-center gap-2 rounded-[11px] text-[15px] font-semibold transition-all duration-300',
-                chosen ? 'bg-surface text-ink shadow-[0_1px_2px_rgba(0,0,0,0.12)] ring-1 ring-line' : 'text-ink-2 hover:text-ink',
-                glowing && 'mode-glow',
-                glowing && !chosen && 'text-[var(--good-text)]',
-                chosen && pending && 'animate-pulse',
-              )}
-            >
-              {glowing ? <span className="live-dot" aria-hidden /> : null}
-              {m.label}
-            </button>
-          );
-        })}
-      </div>
+        {state && !stale && (state.cpu || state.gpu !== undefined || state.mem) ? (
+          <div className="mt-3 grid grid-cols-3 items-start gap-1">
+            {state.cpu ? <CpuGauge cpu={state.cpu} gentle={live === 'gentle'} /> : <span />}
+            {state.gpu !== undefined ? (
+              <Ring label="GPU" value={`${Math.round(state.gpu)}`} unit="%" parts={[{ to: state.gpu / 100, colors: RING.gpu }]} title={`GPU ${Math.round(state.gpu)}% busy`} />
+            ) : (
+              <span />
+            )}
+            {state.mem ? <MemGauge mem={state.mem} /> : <span />}
+          </div>
+        ) : null}
 
-      {state && !stale && state.agents ? <AgentList agents={state.agents} more={state.moreAgents ?? 0} at={state.at} /> : null}
-    </Card>
+        {/* The white button is your choice; the green glow is what the Mac is doing right now
+            (Work while it keeps cores free for you, Full speed while the agents have it all). */}
+        <div role="radiogroup" aria-label="Agents on your Mac" className="mt-3.5 flex h-12 w-full items-center gap-1 rounded-[15px] border border-line bg-surface-2 p-1 lg:h-11">
+          {MODES.map((m) => {
+            const chosen = (pending ?? current) === m.value;
+            const glowing = !pending && nowOption === m.value;
+            return (
+              <button
+                key={m.value}
+                type="button"
+                role="radio"
+                aria-checked={chosen}
+                title={glowing ? `${m.title} (what your Mac is doing now)` : m.title}
+                onClick={() => void choose(m.value)}
+                className={clsx(
+                  'flex h-full flex-1 items-center justify-center gap-2 rounded-[11px] text-[15px] font-semibold transition-all duration-300',
+                  chosen ? 'bg-surface text-ink shadow-[0_1px_2px_rgba(0,0,0,0.12)] ring-1 ring-line' : 'text-ink-2 hover:text-ink',
+                  glowing && 'mode-glow',
+                  glowing && !chosen && 'text-[var(--good-text)]',
+                  chosen && pending && 'animate-pulse',
+                )}
+              >
+                {glowing ? <span className="live-dot" aria-hidden /> : null}
+                {m.label}
+              </button>
+            );
+          })}
+        </div>
+      </Card>
+
+      {state && !stale && state.agents ? <AgentCards agents={state.agents} more={state.moreAgents ?? 0} at={state.at} /> : null}
+    </div>
   );
 }
 
@@ -193,41 +195,55 @@ export function MacCard() {
 const WORKING_MS = 3 * 60_000;
 
 /** Which agent is working on which project, from the Mac's live list. */
-function AgentList({ agents, more, at }: { agents: LiveAgent[]; more: number; at: number }) {
+function AgentCards({ agents, more, at }: { agents: LiveAgent[]; more: number; at: number }) {
   const working = agents.filter((a) => at - a.last <= WORKING_MS).length;
   return (
-    <div className="mt-3.5 border-t border-line pt-3">
-      <div className="text-[13px] font-semibold text-ink-2">
-        {working ? `${working} agent${working > 1 ? 's' : ''} working` : 'No agents working'}
+    <section>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h2 className="text-[17px] font-semibold lg:text-[15px]">
+          {working ? `${working} agent${working > 1 ? 's' : ''} working` : 'No agents working'}
+        </h2>
+        <span className="text-[12.5px] text-muted">Updated {relative(at)}</span>
       </div>
       {agents.length ? (
-        <ul className="mt-1">
-          {agents.map((a, i) => {
-            const on = at - a.last <= WORKING_MS;
-            return (
-              <li key={i} className={clsx('flex items-center gap-2.5 py-1.5', !on && 'opacity-60')}>
-                {on ? (
-                  <span className="live-dot shrink-0" aria-label="Working" />
-                ) : (
-                  <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-[var(--muted)]" aria-label="Idle" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[15px] font-semibold text-ink lg:text-[13.5px]">{a.project}</div>
-                  <div className="truncate text-[12.5px] text-muted">
-                    {on ? '' : `${relative(a.last, at)} · `}
-                    {a.title}
-                  </div>
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-1">
-                  {a.src in SOURCE_META ? <SourceBadge source={a.src as SourceId} /> : null}
-                  <span className="text-[12px] text-muted">{a.model}</span>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
-      {more ? <div className="pt-1 text-[12px] text-muted">and {more} more</div> : null}
+        <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+          {agents.map((a, i) => (
+            <AgentCard key={i} a={a} at={at} />
+          ))}
+        </div>
+      ) : (
+        <Card>
+          <EmptyState title="Nothing running" icon={<Radio size={22} />}>
+            Claude Code and Codex sessions on your Mac appear here within a minute, with their project and model.
+          </EmptyState>
+        </Card>
+      )}
+      {more ? <p className="mt-2 text-[12.5px] text-muted">and {more} more</p> : null}
+    </section>
+  );
+}
+
+function AgentCard({ a, at }: { a: LiveAgent; at: number }) {
+  const on = at - a.last <= WORKING_MS;
+  return (
+    <div className={clsx('card flex flex-col gap-2.5 p-4', !on && 'opacity-70')}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          {on ? (
+            <span className="live-dot shrink-0" aria-label="Working" />
+          ) : (
+            <span className="inline-block h-2 w-2 shrink-0 rounded-full bg-[var(--muted)]" aria-label="Idle" />
+          )}
+          <span className={clsx('text-[13px] font-semibold lg:text-[12px]', on ? 'text-good-text' : 'text-muted')}>{on ? 'Working' : 'Idle'}</span>
+          <span className="text-[13px] text-muted lg:text-[12px]">· {relative(a.last, at)}</span>
+        </div>
+        {a.src in SOURCE_META ? <SourceBadge source={a.src as SourceId} /> : null}
+      </div>
+      <div className="min-w-0">
+        <div className="truncate text-[17px] font-semibold tracking-[-0.01em] lg:text-[14.5px]">{a.project}</div>
+        <div className="mt-0.5 truncate text-[14px] text-muted lg:text-[12.5px]">{a.title}</div>
+      </div>
+      <div className="text-[13px] font-medium text-ink-2 lg:text-[12px]">{a.model}</div>
     </div>
   );
 }

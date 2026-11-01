@@ -19,7 +19,7 @@ by folder and a live view of agents at work. See [On a computer](#on-a-computer-
 
 1. Open **https://nbjdttn.github.io/Agent-visualiser/** in Safari.
 2. Tap **Share → Add to Home Screen**. It now opens full-screen like an app, works offline, and iOS keeps its data.
-3. Open the **Data** tab and turn on **Automatic updates** (see [below](#automatic-updates)).
+3. Open **Your data** (the gear at the top right) and turn on **Automatic updates** (see [below](#automatic-updates)).
 4. Import your chat history:
    - **ChatGPT:** in ChatGPT go to **Settings → Data controls → Export data**. OpenAI emails you a link; open it on the
      iPhone, download the zip, then tap **Import ChatGPT export** and pick the zip (Files → Downloads).
@@ -40,7 +40,7 @@ picture is drawn on the phone; nothing is uploaded.
 Claude Code and Codex keep exact token logs on the computer they run on, and Claude Code cloud sessions (on the web
 and in the Claude app) report their running totals. Automatic updates bring both to the phone without exports:
 
-1. **Register the phone.** Data → Automatic updates → **Turn on**. The phone makes a key pair and shows a code. Send
+1. **Register the phone.** Gear → Your data → Automatic updates → **Turn on**. The phone makes a key pair and shows a code. Send
    the code to Claude ("add this phone to my Agent Visualiser updates"), which runs `npm run sync -- add-device CODE`,
    or tap **Add on GitHub** and commit the file it fills in.
 2. **On your computer**, once: clone this repository (outside Documents/Desktop on a Mac), then
@@ -92,13 +92,13 @@ numbers are, encrypted.
 - **Coding agents** sent by automatic updates have exact token counts. Cloud sessions report running totals, so their
   usage is spread over the time between two readings; a session that runs for days is split by day.
 - **Plan limits:** cloud sessions report whether the Claude 5-hour and weekly windows are OK and when they reset, and the
-  Data tab shows the last report. The percentage used isn't available to other apps on personal accounts.
+  Your data page shows the last report. The percentage used isn't available to other apps on personal accounts.
 
 ### Privacy
 
 The app is a static web page. Files you import are read on the phone, and only the numbers it needs are kept (token
 counts, model, title and time of each conversation, not the messages themselves). They live in the browser storage of
-the Home Screen app, and **Data → Delete all imported data** removes them. Automatic updates are end-to-end encrypted
+the Home Screen app, and **Your data → Delete all imported data** removes them. Automatic updates are end-to-end encrypted
 for your registered devices; turning them off on the phone deletes its key and what it received.
 
 ### Gentle mode: agents leave you room while you use the Mac
@@ -114,12 +114,12 @@ mode is a small background helper that watches for you:
   that anyway, nothing changes.
 - **You're away**: after 2 minutes without input they get the whole Mac back, until you touch the keyboard or mouse
   again (within about 2 seconds).
-- **From the phone**: the Overview tab gets a card for your Mac with a short system panel (one block per CPU core, blue
-  for the agents, glowing green for the cores kept free for you; then GPU and memory) and a switch where the mode you're
-  in glows: **Work** keeps the cores free even when you're not touching the Mac, **Full speed** never holds the agents
-  back, **Auto** follows you. Under the switch, the card lists which agent is working on which project: each Claude
-  Code or Codex session active in the last 20 minutes, with its project, title and model (working ones first; idle
-  ones greyed). Automatic updates refresh that list every 30 seconds while the phone link is on, and the card
+- **From the phone**: the **Live** tab shows a card for your Mac with a short system panel (one block per CPU core,
+  blue for the agents, glowing green for the cores kept free for you; then GPU and memory) and a switch where the mode
+  you're in glows: **Work** keeps the cores free even when you're not touching the Mac, **Full speed** never holds the
+  agents back, **Auto** follows you. Below it, one card per agent says which agent is working on which project: each
+  Claude Code or Codex session active in the last 20 minutes, with its project, title and model (working ones first;
+  idle ones greyed). Automatic updates refresh that list every 30 seconds while the phone link is on, and the tab
   fetches it about once a minute while it's on screen.
 
 Install it on the Mac, in the same folder as automatic updates (running it again updates it):

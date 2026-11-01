@@ -3,7 +3,24 @@ import { PROVIDER_LABEL, type Provider } from '../../shared/types';
 import { compact, full, relative, usd } from '../lib/format';
 import { useData } from '../lib/store';
 import { ActiveSessionCard, BlockCard, CodexLimitsCard } from '../components/Live';
+import { MacLive } from '../components/MacCard';
 import { Card, EmptyState, ProviderDot } from '../components/ui';
+
+/** On the phone: your Mac's agents, through gentle mode's phone link. */
+export function PhoneLivePage() {
+  const { sync } = useData();
+  if (!sync?.computers?.some((c) => c.control)) {
+    return (
+      <Card>
+        <EmptyState title="Live needs your Mac's phone link" icon={<Radio size={22} />}>
+          Install automatic updates and gentle mode on your Mac (<code className="font-mono">npm run sync -- install</code>,{' '}
+          <code className="font-mono">npm run gentle -- install</code>); its agents then appear here, with their projects.
+        </EmptyState>
+      </Card>
+    );
+  }
+  return <MacLive />;
+}
 
 export function LivePage() {
   const { live } = useData();

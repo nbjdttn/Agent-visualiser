@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { Activity, Cpu, Database, FolderKanban, LayoutDashboard, Palette, RotateCw, ScrollText, Share } from 'lucide-react';
+import { Activity, ChevronRight, Cpu, Database, FolderKanban, LayoutDashboard, RotateCw, ScrollText, Settings, Share } from 'lucide-react';
 import { useCallback, useId, useState, type ReactNode } from 'react';
 import { compact, usd } from '../lib/format';
 import { href, type Route } from '../lib/router';
@@ -14,17 +14,17 @@ interface NavItem {
   short: string;
   icon: typeof Activity;
   match: Route['page'][];
-  /** Only shown when a local server provides live data. */
-  serverOnly?: boolean;
+  /** Kept out of the phone's tab bar: reached from the settings menu instead. */
+  inSettings?: boolean;
 }
 
 const NAV: NavItem[] = [
   { route: { page: 'overview' }, label: 'Overview', short: 'Overview', icon: LayoutDashboard, match: ['overview'] },
-  { route: { page: 'live' }, label: 'Live', short: 'Live', icon: Activity, match: ['live'], serverOnly: true },
+  { route: { page: 'live' }, label: 'Live', short: 'Live', icon: Activity, match: ['live'] },
   { route: { page: 'projects' }, label: 'Projects', short: 'Projects', icon: FolderKanban, match: ['projects', 'project'] },
   { route: { page: 'sessions' }, label: 'Sessions & chats', short: 'Chats', icon: ScrollText, match: ['sessions'] },
   { route: { page: 'models' }, label: 'Models', short: 'Models', icon: Cpu, match: ['models'] },
-  { route: { page: 'sources' }, label: 'Your data', short: 'Data', icon: Database, match: ['sources'] },
+  { route: { page: 'sources' }, label: 'Your data', short: 'Data', icon: Database, match: ['sources'], inSettings: true },
 ];
 
 /** The app icon: two usage rings (Claude orange outside, OpenAI green inside) around an AI sparkle. */
@@ -65,15 +65,10 @@ export function Logo({ size = 30 }: { size?: number }) {
   );
 }
 
-function useNav(): NavItem[] {
-  const { mode } = useData();
-  return NAV.filter((n) => !n.serverOnly || mode === 'server');
-}
-
 /** Desktop navigation. */
 function Sidebar({ route }: { route: Route }) {
   const { live, data } = useData();
-  const nav = useNav();
+  const nav = NAV;
   const working = live?.active.filter((a) => a.state === 'working').length ?? 0;
   return (
     <nav className="flex h-full flex-col gap-1 px-3 py-4" aria-label="Main">
@@ -148,7 +143,7 @@ function DemoNote({ compactLayout }: { compactLayout?: boolean }) {
 
 /** Phone navigation: a bottom tab bar that respects the home indicator. */
 function TabBar({ route }: { route: Route }) {
-  const nav = useNav().filter((n) => !n.serverOnly);
+  const nav = NAV.filter((n) => !n.inSettings);
   return (
     <nav
       aria-label="Main"
@@ -202,23 +197,26 @@ function PickerRow({ selected, onClick, swatch, children }: { selected: boolean;
   );
 }
 
-/** One list of themes; each sets the background and the chart colours together. */
-function ThemeToggle() {
+/**
+ * Settings: one list of themes (each sets the background and the chart colours
+ * together), and the way to your data, which the phone's tab bar leaves out.
+ */
+function SettingsMenu() {
   const [pref, setPref] = useTheme();
   const [palette, setPalette] = usePalette();
   return (
     <Popover
-      label="Theme"
+      label="Settings"
       align="right"
       width={250}
       trigger={() => (
         <span className="inline-flex h-11 w-11 items-center justify-center rounded-[13px] border border-line bg-surface text-ink-2 hover:text-ink lg:h-9 lg:w-9 lg:rounded-[10px]">
-          <Palette size={21} aria-hidden />
+          <Settings size={21} aria-hidden />
         </span>
       )}
     >
       {(close) => (
-        <div role="menu" aria-label="Theme" className="flex flex-col gap-0.5">
+        <div role="menu" aria-label="Settings" className="flex flex-col gap-0.5">
           <div className="px-2.5 pb-1 pt-1 text-[12px] font-semibold uppercase tracking-[0.06em] text-muted">Theme</div>
           {COMBOS.map((c) => {
             const bg = THEMES.find((t) => t.id === c.theme)!.page;
@@ -243,6 +241,22 @@ function ThemeToggle() {
               </PickerRow>
             );
           })}
+          <div className="mx-2.5 my-1.5 border-t border-line" />
+          <a
+            role="menuitem"
+            href="#/sources"
+            onClick={close}
+            className="flex min-h-[46px] w-full items-center gap-3 rounded-xl px-2.5 text-left text-[15px] text-ink hover:bg-surface-2 lg:min-h-[38px] lg:text-[14px]"
+          >
+            <span aria-hidden className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink-2">
+              <Database size={16} />
+            </span>
+            <span className="flex-1 leading-tight">
+              Your data
+              <span className="block text-[12.5px] text-muted">Imports and automatic updates</span>
+            </span>
+            <ChevronRight size={16} className="text-muted" aria-hidden />
+          </a>
         </div>
       )}
     </Popover>
@@ -316,7 +330,7 @@ export function AppShell({
                   <span className="hidden sm:inline">Share</span>
                 </button>
               )}
-              <ThemeToggle />
+              <SettingsMenu />
             </div>
             {filters}
           </div>
