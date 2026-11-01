@@ -5,7 +5,6 @@ export type Route =
   | { page: 'live' }
   | { page: 'projects' }
   | { page: 'project'; key: string }
-  | { page: 'sessions' }
   | { page: 'models' }
   | { page: 'sources' };
 
@@ -18,7 +17,7 @@ export function parseHash(hash: string): Route {
     case 'projects':
       return rest.length && rest[0] ? { page: 'project', key: decodeURIComponent(rest.join('/')) } : { page: 'projects' };
     case 'sessions':
-      return { page: 'sessions' };
+      return { page: 'projects' }; // sessions now live on the Projects page
     case 'models':
       return { page: 'models' };
     case 'sources':

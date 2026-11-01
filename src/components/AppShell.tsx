@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { Activity, ChevronRight, Cpu, Database, FolderKanban, LayoutDashboard, RotateCw, ScrollText, Settings, Share } from 'lucide-react';
+import { Activity, ChevronRight, Cpu, Database, FolderKanban, LayoutDashboard, RotateCw, Settings, Share } from 'lucide-react';
 import { useCallback, useId, useState, type ReactNode } from 'react';
 import { compact, usd } from '../lib/format';
 import { href, type Route } from '../lib/router';
@@ -22,7 +22,6 @@ const NAV: NavItem[] = [
   { route: { page: 'overview' }, label: 'Overview', short: 'Overview', icon: LayoutDashboard, match: ['overview'] },
   { route: { page: 'live' }, label: 'Live', short: 'Live', icon: Activity, match: ['live'] },
   { route: { page: 'projects' }, label: 'Projects', short: 'Projects', icon: FolderKanban, match: ['projects', 'project'] },
-  { route: { page: 'sessions' }, label: 'Sessions & chats', short: 'Chats', icon: ScrollText, match: ['sessions'] },
   { route: { page: 'models' }, label: 'Models', short: 'Models', icon: Cpu, match: ['models'] },
   { route: { page: 'sources' }, label: 'Your data', short: 'Data', icon: Database, match: ['sources'], inSettings: true },
 ];

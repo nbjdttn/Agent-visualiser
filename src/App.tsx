@@ -12,7 +12,6 @@ import { ModelsPage } from './pages/Models';
 import { OverviewPage } from './pages/Overview';
 import { ProjectDetailPage } from './pages/ProjectDetail';
 import { ProjectsPage } from './pages/Projects';
-import { SessionsPage } from './pages/Sessions';
 import { SourcesPage } from './pages/Sources';
 
 const TITLES: Record<Route['page'], string> = {
@@ -20,7 +19,6 @@ const TITLES: Record<Route['page'], string> = {
   live: 'Live',
   projects: 'Projects',
   project: 'Project',
-  sessions: 'Sessions & chats',
   models: 'Models',
   sources: 'Your data',
 };
@@ -90,9 +88,6 @@ function Pages() {
         break;
       case 'project':
         body = <ProjectDetailPage data={data} projectKey={route.key} />;
-        break;
-      case 'sessions':
-        body = <SessionsPage data={data} />;
         break;
       case 'models':
         body = <ModelsPage data={data} />;
