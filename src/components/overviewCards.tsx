@@ -1,18 +1,14 @@
 import { useMemo, useState } from 'react';
-import { SOURCE_META, type SessionInfo } from '../../shared/types';
-import { PROVIDER_COLOR, TOKEN_TYPES } from '../lib/colors';
+import { TOKEN_TYPES } from '../lib/colors';
 import { applyFilters, autoGranularity, buildSeries, cumulative, type Data, type Fact, type Filters, type Range, type SeriesDef, type Totals } from '../lib/data';
 import { compact, full, usd } from '../lib/format';
-import { useDrawer } from '../lib/store';
 import { addMonths, monthStart } from '../lib/time';
 import { SimpleTable } from './cards';
 import { ChartCard } from './ChartCard';
-import { BarList, type BarItem } from './charts/BarList';
 import { Legend } from './charts/Legend';
 import { SegmentedBar } from './charts/SegmentedBar';
 import { TimeSeriesChart } from './charts/TimeSeriesChart';
 import { TrendChart } from './charts/TrendChart';
-import { ProviderDot } from './ui';
 
 /** Where the tokens went: cache reads, cache writes, new input, output. */
 export function TokenTypesCard({ t, refetching }: { t: Totals; refetching?: boolean }) {
@@ -85,45 +81,6 @@ export function SpendPaceCard({
         format={fmt}
         ariaLabel="Running total of estimated cost, this period and the previous one"
       />
-    </ChartCard>
-  );
-}
-
-/** The largest sessions and chats as ranked bars; tap one to open it. */
-export function BiggestSessionsCard({ data, sessions, refetching }: { data: Data; sessions: SessionInfo[]; refetching?: boolean }) {
-  const { openSession } = useDrawer();
-  const items: BarItem[] = useMemo(
-    () =>
-      [...sessions]
-        .map((s) => ({ s, tokens: s.input + s.output + s.cacheRead + s.cacheWrite }))
-        .sort((a, b) => b.tokens - a.tokens)
-        .slice(0, 6)
-        .map(({ s, tokens }) => {
-          const provider = SOURCE_META[data.sourceIds[s.src]].provider;
-          return {
-            key: s.key,
-            label: s.title || 'Untitled',
-            sublabel: data.projects[s.proj]?.name,
-            value: tokens,
-            display: compact(tokens),
-            secondary: usd(s.cost),
-            color: PROVIDER_COLOR[provider],
-            icon: <ProviderDot provider={provider} />,
-          };
-        }),
-    [data, sessions],
-  );
-  return (
-    <ChartCard
-      title="Biggest sessions"
-      refetching={refetching}
-      actions={
-        <a href="#/sessions" className="text-[14px] font-medium text-ink-2 hover:text-ink lg:text-[12px]">
-          All →
-        </a>
-      }
-    >
-      <BarList items={items} onSelect={openSession} limit={6} emptyLabel="No sessions in this period" />
     </ChartCard>
   );
 }

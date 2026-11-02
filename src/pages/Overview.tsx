@@ -17,7 +17,7 @@ import { useData, useFilters } from '../lib/store';
 import { HeroCard } from '../components/Hero';
 import { CalendarCard, HourCard, ModelsCard, ProjectsCard } from '../components/cards';
 import { LiveStrip } from '../components/Live';
-import { BiggestSessionsCard, CostCard, MonthsCard } from '../components/overviewCards';
+import { CostCard, MonthsCard } from '../components/overviewCards';
 import { StatTile } from '../components/StatTile';
 import { UsageOverTime } from '../components/UsageOverTime';
 import { Delta } from '../components/ui';
@@ -90,8 +90,6 @@ export function OverviewPage({ data }: { data: Data }) {
       </div>
 
       <CostCard data={data} facts={facts} range={range} refetching={refetching} />
-
-      <BiggestSessionsCard data={data} sessions={sessions} refetching={refetching} />
 
       <div className="grid gap-4 lg:grid-cols-2 lg:gap-5">
         <ProjectsCard data={data} facts={facts} refetching={refetching} />

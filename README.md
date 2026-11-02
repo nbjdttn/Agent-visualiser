@@ -73,7 +73,7 @@ numbers are, encrypted.
 
 - **Overview:** tokens and estimated cost for any period, the change from the previous period, the Claude/OpenAI split,
   usage per day, week or month (by provider, model, project, source or token type), a calendar of active days, when in
-  the week you use AI, recent chats, tools used (web search, code, images) and monthly totals.
+  the week you use AI, cost per day, top projects and models, and monthly totals.
 - **Projects:** a map of where your tokens go: ChatGPT projects, custom GPTs, Claude projects and everything else. Tap
   one for its own timeline, models and conversations. ChatGPT exports don't include project names, so you can rename
   them (the name is only stored on your phone). At the bottom: every conversation with its model, length,
