@@ -1,0 +1,33 @@
+{
+  "v": 1,
+  "files": {
+    "computer-e15b38ebaa.json": {
+      "kind": "computer",
+      "updatedAt": 1794050027271,
+      "recipients": [
+        "7-mPrn2nzgSV2Te8"
+      ]
+    },
+    "cloud.json": {
+      "kind": "cloud",
+      "updatedAt": 1793454600000,
+      "recipients": [
+        "7-mPrn2nzgSV2Te8"
+      ]
+    },
+    "computer-estimate.json": {
+      "kind": "computer",
+      "updatedAt": 1793458643121,
+      "recipients": [
+        "7-mPrn2nzgSV2Te8"
+      ]
+    },
+    "computer-cowork.json": {
+      "kind": "computer",
+      "updatedAt": 1793458324878,
+      "recipients": [
+        "7-mPrn2nzgSV2Te8"
+      ]
+    }
+  }
+}
